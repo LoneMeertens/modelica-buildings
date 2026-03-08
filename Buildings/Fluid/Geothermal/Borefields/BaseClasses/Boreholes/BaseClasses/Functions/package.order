@@ -6,3 +6,5 @@ multipoleFmk
 multipoleThermalResistances
 partialInternalResistances
 Validation
+convectionResistanceCircularPipeOutputs
+convectionResistanceCircularPipeOutputsFluProTemDep
