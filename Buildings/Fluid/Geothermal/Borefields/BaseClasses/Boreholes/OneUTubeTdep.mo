@@ -2,7 +2,7 @@ within Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes;
 model OneUTubeTdep "Single U-tube borehole heat exchanger"
   extends Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PartialBorehole;
 
-  IDEAS.Fluid.Geothermal.Borefields.Validation.BaseClasses.InternalHEXOneUTube
+  Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalHEXOneUTubeTdep
     intHex[nSeg](
     redeclare each final package Medium = Medium,
     each final hSeg=borFieDat.conDat.hBor/nSeg,
@@ -115,7 +115,7 @@ This is for
 </li>
 <li>
 July 2018, by Alex Laferri&egrave;re:<br/>
-Following major changes to the structure of the IDEAS.Fluid.HeatExchangers.Ground package,
+Following major changes to the structure of the Buildings.Fluid.HeatExchangers.Ground package,
 the documentation has been changed to reflect the new role of this model.
 Additionally, this model now extends a partial borehole model.
 </li>

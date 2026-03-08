@@ -1,4 +1,6 @@
 convectionResistanceCircularPipe
+convectionResistanceCircularPipeOutputs
+convectionResistanceCircularPipeOutputsFluProTemDep
 internalResistancesOneUTube
 internalResistancesTwoUTube
 multipoleFluidTemperature
@@ -6,5 +8,4 @@ multipoleFmk
 multipoleThermalResistances
 partialInternalResistances
 Validation
-convectionResistanceCircularPipeOutputs
-convectionResistanceCircularPipeOutputsFluProTemDep
+
