@@ -30,7 +30,7 @@ protected
 
 public
   Modelica.Blocks.Sources.RealExpression RVol1(y=
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipe(
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputs(
       hSeg=hSeg,
       rTub=borFieDat.conDat.rTub,
       eTub=borFieDat.conDat.eTub,
@@ -42,7 +42,7 @@ public
     "Convective and thermal resistance at fluid 1"
     annotation (Placement(transformation(extent={{-100,-2},{-80,18}})));
   Modelica.Blocks.Sources.RealExpression RVol2(y=
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipe(
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputs(
       hSeg=hSeg,
       rTub=borFieDat.conDat.rTub,
       eTub=borFieDat.conDat.eTub,
