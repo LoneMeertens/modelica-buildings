@@ -29,31 +29,19 @@ protected
   parameter Real Rgg_val(fixed=false) "Thermal resistance between the two grout zones";
 
 public
-  Modelica.Blocks.Sources.RealExpression RVol1(y=
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputs(
-      hSeg=hSeg,
-      rTub=borFieDat.conDat.rTub,
-      eTub=borFieDat.conDat.eTub,
-      kMed=kMed,
-      muMed=muMed,
-      cpMed=cpMed,
-      m_flow=m1_flow,
-      m_flow_nominal=m1_flow_nominal))
-    "Convective and thermal resistance at fluid 1"
-    annotation (Placement(transformation(extent={{-100,-2},{-80,18}})));
-  Modelica.Blocks.Sources.RealExpression RVol2(y=
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputs(
-      hSeg=hSeg,
-      rTub=borFieDat.conDat.rTub,
-      eTub=borFieDat.conDat.eTub,
-      kMed=kMed,
-      muMed=muMed,
-      cpMed=cpMed,
-      m_flow=m2_flow,
-      m_flow_nominal=m2_flow_nominal))
-    "Convective and thermal resistance at fluid 2"
-    annotation (Placement(transformation(extent={{-100,-18},{-80,2}})));
+  Real RVol1_val(unit="K/W") "Convective resistance (fluid 1) computed at runtime";
+  output Real Nu1(unit="") "Nusselt (fluid 1)";
+  output Modelica.Units.SI.CoefficientOfHeatTransfer h1 "Convective heat transfer coeff (fluid 1)";
+  output Real Re1(unit="") "Reynolds number (fluid 1)";
+  output Real NuTurb1(unit="") "Nusselt at Re=2400 (fluid 1)";
 
+  Real RVol2_val(unit="K/W") "Convective resistance (fluid 2) computed at runtime";
+  output Real Nu2(unit="") "Nusselt (fluid 2)";
+  output Modelica.Units.SI.CoefficientOfHeatTransfer h2 "Convective heat transfer coeff (fluid 2)";
+  output Real Re2(unit="") "Reynolds number (fluid 2)";
+  output Real NuTurb2(unit="") "Nusselt at Re=2400 (fluid 2)";
+
+public
   Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalResistancesOneUTube
     intResUTub(
       hSeg=hSeg,
@@ -75,6 +63,13 @@ public
     annotation (Placement(transformation(extent={{-12,-12},{12,12}},
         rotation=90,
         origin={0,28})));
+  Modelica.Blocks.Sources.RealExpression RVol1(y=RVol1_val)
+    "Convective and thermal resistance at fluid 1"
+    annotation (Placement(transformation(extent={{-96,-2},{-76,18}})));
+  Modelica.Blocks.Sources.RealExpression RVol2(y=RVol2_val)
+    "Convective and thermal resistance at fluid 2"
+    annotation (Placement(transformation(extent={{-96,-18},{-76,2}})));
+
 initial equation
   (x, Rgb_val, Rgg_val, RCondGro_val) =
     Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube(
@@ -95,13 +90,35 @@ initial equation
       instanceName=getInstanceName());
 
 equation
+    (RVol1_val, Nu1, h1, Re1, NuTurb1) =
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputs(
+      hSeg=hSeg,
+      rTub=borFieDat.conDat.rTub,
+      eTub=borFieDat.conDat.eTub,
+      kMed=kMed,
+      muMed=muMed,
+      cpMed=cpMed,
+      m_flow=m1_flow,
+      m_flow_nominal=m1_flow_nominal)
+    "Convective and thermal resistance at fluid 1";
+  (RVol2_val, Nu2, h2, Re2, NuTurb2) =
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputs(
+      hSeg=hSeg,
+      rTub=borFieDat.conDat.rTub,
+      eTub=borFieDat.conDat.eTub,
+      kMed=kMed,
+      muMed=muMed,
+      cpMed=cpMed,
+      m_flow=m2_flow,
+      m_flow_nominal=m2_flow_nominal)
+    "Convective and thermal resistance at fluid 2";
     assert(borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube,
   "This model should be used for single U-type borefield, not double U-type.
   Check that the conDat record has been correctly parametrized");
-  connect(RVol2.y, RConv2.Rc) annotation (Line(points={{-79,-8},{-60,-8},{-40,
+  connect(RVol2.y, RConv2.Rc) annotation (Line(points={{-75,-8},{-75,-8},{-40,
           -8},{-40,-28},{-12,-28}},
                                 color={0,0,127}));
-  connect(RVol1.y, RConv1.Rc) annotation (Line(points={{-79,8},{-40,8},{-40,28},
+  connect(RVol1.y, RConv1.Rc) annotation (Line(points={{-75,8},{-40,8},{-40,28},
           {-12,28}}, color={0,0,127}));
   connect(vol1.heatPort, RConv1.fluid) annotation (Line(points={{-10,60},{-20,
           60},{-20,40},{6.66134e-016,40}}, color={191,0,0}));
