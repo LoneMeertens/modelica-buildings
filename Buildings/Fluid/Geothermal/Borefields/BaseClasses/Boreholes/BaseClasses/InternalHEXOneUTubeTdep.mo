@@ -47,13 +47,6 @@ public
   output Real Re2(unit="") "Reynolds number (fluid 2)";
   output Real NuTurb2(unit="") "Nusselt at Re=2400 (fluid 2)";
 
-  output Modelica.Units.SI.Density rho_vol1 "density of fluid in vol1";
-  output Modelica.Units.SI.Density rho_vol2 "density of fluid in vol2";
-  output Modelica.Units.SI.DynamicViscosity mu_vol1 "viscosity of fluid in vol1";
-  output Modelica.Units.SI.DynamicViscosity mu_vol2 "viscosity of fluid in vol2";
-  output Modelica.Units.SI.SpecificHeatCapacity cp_vol1 "cp in vol1";
-  output Modelica.Units.SI.SpecificHeatCapacity cp_vol2 "cp in vol2";
-
   Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalResistancesOneUTube
     intResUTub(
       hSeg=hSeg,
@@ -129,16 +122,6 @@ equation
         p    = Medium.p_default,
         m_flow = m2_flow_dum,
         m_flow_nominal = m2_flow_nominal);
-
-   // evaluate medium properties at current state (no extra algebraic vars)
-  rho_vol1 = Medium.density(Medium.setState_pTX(vol1.p, vol1.T, Medium.X_default));
-  rho_vol2 = Medium.density(Medium.setState_pTX(vol2.p, vol2.T, Medium.X_default));
-
-  mu_vol1  = Medium.dynamicViscosity(Medium.setState_pTX(vol1.p, vol1.T, Medium.X_default));
-  mu_vol2  = Medium.dynamicViscosity(Medium.setState_pTX(vol2.p, vol2.T, Medium.X_default));
-
-  cp_vol1  = Medium.specificHeatCapacityCp(Medium.setState_pTX(vol1.p, vol1.T, Medium.X_default));
-  cp_vol2  = Medium.specificHeatCapacityCp(Medium.setState_pTX(vol2.p, vol2.T, Medium.X_default));
 
     assert(borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube,
   "This model should be used for single U-type borefield, not double U-type.
