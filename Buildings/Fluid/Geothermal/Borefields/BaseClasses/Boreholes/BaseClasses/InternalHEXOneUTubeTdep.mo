@@ -27,6 +27,12 @@ model InternalHEXOneUTubeTdep
 
 protected
   parameter Real Rgg_val(fixed=false) "Thermal resistance between the two grout zones";
+  parameter Modelica.Units.SI.Time tauFlow = 120
+  "Time constant for filtered flow used in thermal correlations";
+  Modelica.Units.SI.MassFlowRate m1_flow_dum(start=m1_flow_nominal, fixed=true)
+  "Filtered mass flow for thermal calculations, side 1";
+  Modelica.Units.SI.MassFlowRate m2_flow_dum(start=m2_flow_nominal, fixed=true)
+  "Filtered mass flow for thermal calculations, side 2";
 
 public
     Real RVol1_val(unit="K/W") "Convective resistance (fluid 1) computed at runtime";
@@ -97,6 +103,10 @@ initial equation
       instanceName=getInstanceName());
 
 equation
+  // Dummy flow dynamics to reduce coupling
+  tauFlow*der(m1_flow_dum) = m1_flow - m1_flow_dum;
+  tauFlow*der(m2_flow_dum) = m2_flow - m2_flow_dum;
+
   // compute using current volume states (runtime)
   (RVol1_val, Nu1, h1, Re1, NuTurb1) =
     Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputsFluProTemDep(
@@ -104,8 +114,8 @@ equation
         rTub = borFieDat.conDat.rTub,
         eTub = borFieDat.conDat.eTub,
         T    = vol1.T,
-        p    = vol1.p,
-        m_flow = m1_flow,
+        p    = Medium.p_default,
+        m_flow = m1_flow_dum,
         m_flow_nominal = m1_flow_nominal);
                                // current temperature of vol1
                                // current pressure of vol1 (optional)
@@ -116,8 +126,8 @@ equation
         rTub = borFieDat.conDat.rTub,
         eTub = borFieDat.conDat.eTub,
         T    = vol2.T,
-        p    = vol2.p,
-        m_flow = m2_flow,
+        p    = Medium.p_default,
+        m_flow = m2_flow_dum,
         m_flow_nominal = m2_flow_nominal);
 
    // evaluate medium properties at current state (no extra algebraic vars)
