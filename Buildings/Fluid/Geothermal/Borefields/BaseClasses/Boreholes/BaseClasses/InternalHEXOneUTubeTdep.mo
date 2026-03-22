@@ -2,22 +2,22 @@ within Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses;
 model InternalHEXOneUTubeTdep
   "Internal heat exchanger of a borehole for a single U-tube configuration"
   extends
-    IDEAS.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PartialInternalHEX;
-  extends IDEAS.Fluid.Interfaces.FourPortHeatMassExchanger(
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PartialInternalHEX;
+  extends Buildings.Fluid.Interfaces.FourPortHeatMassExchanger(
     redeclare final package Medium1 = Medium,
     redeclare final package Medium2 = Medium,
     T1_start=TFlu_start,
     T2_start=TFlu_start,
     final tau1=VTubSeg*rho1_nominal/m1_flow_nominal,
     final tau2=VTubSeg*rho2_nominal/m2_flow_nominal,
-    redeclare final IDEAS.Fluid.MixingVolumes.MixingVolume vol1(
+    redeclare final Buildings.Fluid.MixingVolumes.MixingVolume vol1(
       final energyDynamics=energyDynamics,
       final massDynamics=energyDynamics,
       final prescribedHeatFlowRate=false,
       final m_flow_small=m1_flow_small,
       final V=VTubSeg,
       final mSenFac=mSenFac),
-    redeclare final IDEAS.Fluid.MixingVolumes.MixingVolume vol2(
+    redeclare final Buildings.Fluid.MixingVolumes.MixingVolume vol2(
       final energyDynamics=energyDynamics,
       final massDynamics=energyDynamics,
       final prescribedHeatFlowRate=false,
@@ -48,7 +48,7 @@ public
   output Modelica.Units.SI.SpecificHeatCapacity cp_vol1 "cp in vol1";
   output Modelica.Units.SI.SpecificHeatCapacity cp_vol2 "cp in vol2";
 
-  IDEAS.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalResistancesOneUTube
+  Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalResistancesOneUTube
     intResUTub(
       hSeg=hSeg,
       energyDynamics=energyDynamics,
@@ -79,7 +79,7 @@ public
     annotation (Placement(transformation(extent={{-96,-18},{-76,2}})));
 initial equation
   (x, Rgb_val, Rgg_val, RCondGro_val) =
-    IDEAS.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube(
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube(
       hSeg=hSeg,
       rBor=borFieDat.conDat.rBor,
       rTub=borFieDat.conDat.rTub,
@@ -99,7 +99,7 @@ initial equation
 equation
   // compute using current volume states (runtime)
   (RVol1_val, Nu1, h1, Re1, NuTurb1) =
-    IDEAS.Fluid.Geothermal.Borefields.Validation.Functions.convectionResistanceCircularPipeFluidProperties_Tdep(
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputsFluProTemDep(
         hSeg = hSeg,
         rTub = borFieDat.conDat.rTub,
         eTub = borFieDat.conDat.eTub,
@@ -111,7 +111,7 @@ equation
                                // current pressure of vol1 (optional)
 
   (RVol2_val, Nu2, h2, Re2, NuTurb2) =
-    IDEAS.Fluid.Geothermal.Borefields.Validation.Functions.convectionResistanceCircularPipeFluidProperties_Tdep(
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputsFluProTemDep(
         hSeg = hSeg,
         rTub = borFieDat.conDat.rTub,
         eTub = borFieDat.conDat.eTub,
@@ -130,7 +130,7 @@ equation
   cp_vol1  = Medium.specificHeatCapacityCp(Medium.setState_pTX(vol1.p, vol1.T, Medium.X_default));
   cp_vol2  = Medium.specificHeatCapacityCp(Medium.setState_pTX(vol2.p, vol2.T, Medium.X_default));
 
-    assert(borFieDat.conDat.borCon == IDEAS.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube,
+    assert(borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube,
   "This model should be used for single U-type borefield, not double U-type.
   Check that the conDat record has been correctly parametrized");
   connect(vol1.heatPort, RConv1.fluid) annotation (Line(points={{-10,60},{-20,
@@ -214,14 +214,14 @@ This is for
 <li>
 February 28, 2022, by Massimo Cimmino:<br/>
 Removed <code>printDebug</code> parameter from call to
-<a href=\"modelica://IDEAS.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube\">
-IDEAS.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube</a>.<br/>
+<a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube\">
+Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube</a>.<br/>
 This is for
 <a href=\"https://github.com/ibpsa/modelica-ibpsa/issues/1582\">IBPSA, #1582</a>.
 </li>
 <li>
 July 10, 2018, by Alex Laferri&egrave;re:<br/>
-Updated documentation following major changes to the IDEAS.Fluid.HeatExchangers.Ground package.
+Updated documentation following major changes to the Buildings.Fluid.HeatExchangers.Ground package.
 Additionally, implemented a partial InternalHex model.
 </li>
 <li>
