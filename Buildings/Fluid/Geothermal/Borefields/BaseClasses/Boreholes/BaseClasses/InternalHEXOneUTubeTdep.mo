@@ -110,8 +110,6 @@ equation
         p    = Medium.p_default,
         m_flow = m1_flow_dum,
         m_flow_nominal = m1_flow_nominal);
-                               // current temperature of vol1
-                               // current pressure of vol1 (optional)
 
   (RVol2_val, Nu2, h2, Re2, NuTurb2) =
     Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputsFluProTemDep(
