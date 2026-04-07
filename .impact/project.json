@@ -51,6 +51,13 @@
       "contentType": "GENERIC",
       "defaultDisabled": true,
       "id": "d549b616e3024b9c892220ca5a54d94a"
+    },
+    {
+      "relpath": "ModelTesting",
+      "contentType": "MODELICA",
+      "name": "ModelTesting",
+      "defaultDisabled": false,
+      "id": "a380c83ef2a74cf993ecaaa631340b37"
     }
   ],
   "executionOptions": []
