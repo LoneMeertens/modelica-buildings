@@ -1,33 +1,33 @@
-within Buildings.Fluid.Geothermal.Borefields.Examples;
+within ModelTesting;
 model BorefieldsDynFluPropWater_OneUTubeTdep_Medium
   "Validation model of borefields with different media specifications operating simultaneously"
-  extends Modelica.Icons.Example;
+  extends .Modelica.Icons.Example;
 
-  package MediumTdep = Buildings.Media.Specialized.Water.TemperatureDependentDensity;
-  package Medium = Buildings.Media.Water;
-  parameter Modelica.Units.SI.Time tLoaAgg=300
+  package MediumTdep = .Buildings.Media.Specialized.Water.TemperatureDependentDensity;
+  package Medium = .Buildings.Media.Water;
+  parameter .Modelica.Units.SI.Time tLoaAgg=300
     "Time resolution of load aggregation";
 
-  parameter Modelica.Units.SI.MassFlowRate m_flow_nominal=borFieUTubDat.conDat.mBorFie_flow_nominal/4;
+  parameter .Modelica.Units.SI.MassFlowRate m_flow_nominal=borFieUTubDat.conDat.mBorFie_flow_nominal/4;
   parameter Real freq = 1/3600 "sinusoid frequency in Hz (1/3600 = 1 cycle per hour)";
   parameter Real phase = 0 "phase shift (rad)";
 
-  parameter Modelica.Units.SI.Temperature TGro=283.15 "Ground temperature";
-  parameter Buildings.Fluid.Geothermal.Borefields.Data.Borefield.Example borFieUTubDat(
-    filDat=Buildings.Fluid.Geothermal.Borefields.Data.Filling.Bentonite(
+  parameter .Modelica.Units.SI.Temperature TGro=283.15 "Ground temperature";
+  parameter .Buildings.Fluid.Geothermal.Borefields.Data.Borefield.Example borFieUTubDat(
+    filDat=.Buildings.Fluid.Geothermal.Borefields.Data.Filling.Bentonite(
     steadyState=true),
-    conDat=Buildings.Fluid.Geothermal.Borefields.Data.Configuration.Example(
-    borCon=Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube))
+    conDat=.Buildings.Fluid.Geothermal.Borefields.Data.Configuration.Example(
+    borCon=.Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube))
     annotation (Placement(transformation(extent={{-88,72},{-68,92}})));
 
-  OneUTubeTdep                                       borFieUTub2(
+  .Buildings.Fluid.Geothermal.Borefields.OneUTubeTdep                                       borFieUTub2(
     redeclare package Medium = Medium,
     borFieDat=borFieUTubDat,
     tLoaAgg=tLoaAgg,
-    energyDynamics=Modelica.Fluid.Types.Dynamics.FixedInitial,
+    energyDynamics=.Modelica.Fluid.Types.Dynamics.FixedInitial,
     TExt0_start=TGro) "Borefield with a U-tube borehole configuration"
     annotation (Placement(transformation(extent={{34,4},{54,24}})));
-  Sources.MassFlowSource_T                 sou2(
+  .Buildings.Fluid.Sources.MassFlowSource_T                 sou2(
     redeclare package Medium = Medium,
     nPorts=1,
     use_T_in=false,
@@ -35,12 +35,12 @@ model BorefieldsDynFluPropWater_OneUTubeTdep_Medium
     T=303.15) "Source" annotation (Placement(transformation(extent={{-48,4},{
             -28,24}},
                   rotation=0)));
-  Sensors.TemperatureTwoPort                 TUTubIn2(
+  .Buildings.Fluid.Sensors.TemperatureTwoPort                 TUTubIn2(
     redeclare package Medium = Medium,
     m_flow_nominal=m_flow_nominal,
     tau=0) "Inlet temperature of the borefield with UTube configuration"
     annotation (Placement(transformation(extent={{-16,4},{4,24}})));
-  Sources.Boundary_pT                 sin2(
+  .Buildings.Fluid.Sources.Boundary_pT                 sin2(
     redeclare package Medium = Medium,
     use_p_in=false,
     use_T_in=false,
@@ -49,7 +49,7 @@ model BorefieldsDynFluPropWater_OneUTubeTdep_Medium
     T=283.15) "Sink" annotation (Placement(transformation(extent={{134,4},{114,
             24}},
           rotation=0)));
-  Sensors.TemperatureTwoPort                 TUTubOut2(
+  .Buildings.Fluid.Sensors.TemperatureTwoPort                 TUTubOut2(
     redeclare package Medium = Medium,
     m_flow_nominal=m_flow_nominal,
     tau=0) "Inlet temperature of the borefield with UTube configuration"
