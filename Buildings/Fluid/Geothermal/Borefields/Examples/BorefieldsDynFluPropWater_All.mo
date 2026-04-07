@@ -38,15 +38,14 @@ model BorefieldsDynFluPropWater_All
     redeclare package Medium = MediumTdep,
     m_flow_nominal=m_flow_nominal,
     tau=0) "Inlet temperature of the borefield with UTube configuration"
-    annotation (Placement(transformation(extent={{-20,50},{0,70}})));
+    annotation (Placement(transformation(extent={{-19.06,49.38},{0.94,69.38}},rotation = 0.0,origin = {0.0,0.0})));
   Buildings.Fluid.Sources.Boundary_pT sin1(
     redeclare package Medium = MediumTdep,
     use_p_in=false,
     use_T_in=false,
     nPorts=1,
     p=101330,
-    T=283.15) "Sink" annotation (Placement(transformation(extent={{130,50},{110,
-            70}}, rotation=0)));
+    T=283.15) "Sink" annotation (Placement(transformation(extent={{130.0,50.0},{110.0,70.0}}, rotation=0.0,origin = {0.0,0.0})));
   Buildings.Fluid.Sensors.TemperatureTwoPort TUTubOut1(
     redeclare package Medium = MediumTdep,
     m_flow_nominal=m_flow_nominal,
@@ -151,13 +150,13 @@ model BorefieldsDynFluPropWater_All
 equation
 
   connect(TUTubIn1.port_b,borFieUTub1. port_a)
-    annotation (Line(points={{0,60},{30,60}}, color={0,127,255}));
+    annotation (Line(points={{0.94,59.38},{0.94,60},{30,60}}, color={0,127,255}));
   connect(borFieUTub1.port_b,TUTubOut1. port_a)
     annotation (Line(points={{50,60},{80,60}}, color={0,127,255}));
   connect(TUTubOut1.port_b,sin1. ports[1])
     annotation (Line(points={{100,60},{110,60}}, color={0,127,255}));
   connect(TUTubIn1.port_a,sou1. ports[1])
-    annotation (Line(points={{-20,60},{-32,60}}, color={0,127,255}));
+    annotation (Line(points={{-19.06,59.38},{-19.06,60},{-32,60}}, color={0,127,255}));
   connect(TUTubIn4.port_b,borFieUTub4. port_a)
     annotation (Line(points={{4,-76},{34,-76}}, color={0,127,255}));
   connect(borFieUTub4.port_b,TUTubOut4. port_a)
