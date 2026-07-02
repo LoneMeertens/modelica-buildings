@@ -26,36 +26,48 @@ function convectionResistanceCircularPipeOutputsFluProTemDep
   output Real Re "Reynolds number";
   output Real NuTurb "Nusselt at Re=2400";
 
+  // media property outputs ──
+  output Modelica.Units.SI.SpecificHeatCapacity cp
+    "Specific heat capacity of fluid [J/kg·K]";
+  output Modelica.Units.SI.ThermalConductivity k
+    "Thermal conductivity of fluid [W/m·K]";
+  output Modelica.Units.SI.DynamicViscosity mu
+    "Dynamic viscosity of fluid [Pa·s]";
+  output Modelica.Units.SI.Density rho
+    "Density of fluid [kg/m³]";
+  output Real Pr
+    "Prandtl number [-]";
+
 protected
   Modelica.Units.SI.Radius rTub_in = rTub - eTub "Pipe inner radius";
   Real k_coef "aux coefficient used in Re computation";
-  // compute properties from current T and p
-  Modelica.Units.SI.SpecificHeatCapacity cpMed;
-  Modelica.Units.SI.ThermalConductivity       kMed;
-  Modelica.Units.SI.DynamicViscosity          muMed;
   Modelica.Units.SI.MassFlowRate m_flow_abs;
+
 algorithm
-  // Evaluate medium properties at (p,T)
-  cpMed := Medium.specificHeatCapacityCp(Medium.setState_pTX(p, T, Medium.X_default));
-  kMed  := Medium.thermalConductivity(     Medium.setState_pTX(p, T, Medium.X_default));
-  muMed := Medium.dynamicViscosity(        Medium.setState_pTX(p, T, Medium.X_default));
+  // Evaluate medium properties at (p, T) 
+  cp  := Medium.specificHeatCapacityCp(Medium.setState_pTX(p, T, Medium.X_default));
+  k   := Medium.thermalConductivity(   Medium.setState_pTX(p, T, Medium.X_default));
+  mu  := Medium.dynamicViscosity(      Medium.setState_pTX(p, T, Medium.X_default));
+  rho := Medium.density(               Medium.setState_pTX(p, T, Medium.X_default));
+  Pr  := cp * mu / k;
 
-  // Convection resistance and Reynolds number (same logic as original)
-  k_coef := 2/(muMed*Modelica.Constants.pi*rTub_in);
+  // Convection resistance and Reynolds number 
+  k_coef := 2 / (mu * Modelica.Constants.pi * rTub_in);
   m_flow_abs := Buildings.Utilities.Math.Functions.spliceFunction(
-                   m_flow, -m_flow, m_flow, m_flow_nominal/30);
-
+                   m_flow, -m_flow, m_flow, m_flow_nominal / 30);
   Re := m_flow_abs * k_coef;
 
   if Re >= 2400 then
-    Nu := 0.023*(cpMed*muMed/kMed)^(0.35) *
-          Buildings.Utilities.Math.Functions.regNonZeroPower(x=Re, n=0.8, delta=0.01*m_flow_nominal*k_coef);
+    Nu := 0.023 * (cp * mu / k)^(0.35) *
+          Buildings.Utilities.Math.Functions.regNonZeroPower(
+            x=Re, n=0.8, delta=0.01 * m_flow_nominal * k_coef);
   else
-    NuTurb := 0.023*(cpMed*muMed/kMed)^(0.35)*(2400)^(0.8);
-    Nu := Buildings.Utilities.Math.Functions.spliceFunction(NuTurb, 3.66, Re-(2300+2400)/2, ((2300+2400)/2)-2300);
+    NuTurb := 0.023 * (cp * mu / k)^(0.35) * (2400)^(0.8);
+    Nu := Buildings.Utilities.Math.Functions.spliceFunction(
+            NuTurb, 3.66, Re - (2300 + 2400) / 2, ((2300 + 2400) / 2) - 2300);
   end if;
 
-  h := Nu * kMed / (2*rTub_in);
-  RFluPip := 1/(2*Modelica.Constants.pi*rTub_in*hSeg*h);
+  h      := Nu * k / (2 * rTub_in);
+  RFluPip := 1 / (2 * Modelica.Constants.pi * rTub_in * hSeg * h);
 
 end convectionResistanceCircularPipeOutputsFluProTemDep;

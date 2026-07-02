@@ -35,7 +35,20 @@ protected
   "Filtered mass flow for thermal calculations, side 2";
 
 public
-    Real RVol1_val(unit="K/W") "Convective resistance (fluid 1) computed at runtime";
+  // ── Media property outputs from convection resistance function ──
+  Real cp1(unit="J/(kg.K)") "Specific heat capacity inlet pipe";
+  Real k1(unit="W/(m.K)")   "Thermal conductivity inlet pipe";
+  Real mu1(unit="Pa.s")     "Dynamic viscosity inlet pipe";
+  Real rho1(unit="kg/m3")   "Density inlet pipe";
+  Real Pr1                   "Prandtl number inlet pipe";
+
+  Real cp2(unit="J/(kg.K)") "Specific heat capacity outlet pipe";
+  Real k2(unit="W/(m.K)")   "Thermal conductivity outlet pipe";
+  Real mu2(unit="Pa.s")     "Dynamic viscosity outlet pipe";
+  Real rho2(unit="kg/m3")   "Density outlet pipe";
+  Real Pr2                   "Prandtl number outlet pipe";
+
+  Real RVol1_val(unit="K/W") "Convective resistance (fluid 1) computed at runtime";
   output Real Nu1(unit="") "Nusselt (fluid 1)";
   output Modelica.Units.SI.CoefficientOfHeatTransfer h1 "Convective heat transfer coeff (fluid 1)";
   output Real Re1(unit="") "Reynolds number (fluid 1)";
@@ -101,7 +114,7 @@ equation
   tauFlow*der(m2_flow_dum) = m2_flow - m2_flow_dum;
 
   // compute using current volume states (runtime)
-  (RVol1_val, Nu1, h1, Re1, NuTurb1) =
+  (RVol1_val, Nu1, h1, Re1, NuTurb1, cp1, k1, mu1, rho1, Pr1) =
     Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputsFluProTemDep(
         hSeg = hSeg,
         rTub = borFieDat.conDat.rTub,
@@ -111,7 +124,7 @@ equation
         m_flow = m1_flow_dum,
         m_flow_nominal = m1_flow_nominal);
 
-  (RVol2_val, Nu2, h2, Re2, NuTurb2) =
+  (RVol2_val, Nu2, h2, Re2, NuTurb2, cp2, k2, mu2, rho2, Pr2) =
     Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipeOutputsFluProTemDep(
         hSeg = hSeg,
         rTub = borFieDat.conDat.rTub,
