@@ -2,6 +2,9 @@ within Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes;
 model OneUTubeTdep "Single U-tube borehole heat exchanger"
   extends Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PartialBorehole;
 
+  parameter Boolean useGlycol = false;
+  parameter Real X_a = 0.25;
+
   Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalHEXOneUTubeTdep
     intHex[nSeg](
     redeclare each final package Medium = Medium,
@@ -24,6 +27,8 @@ model OneUTubeTdep "Single U-tube borehole heat exchanger"
     each final show_T=show_T,
     each final p1_start=p_start,
     each final p2_start=p_start,
+    each final useGlycol = useGlycol,
+    each final X_a = X_a,
     final TFlu_start=TFlu_start,
     final TGro_start=TGro_start) "Borehole segments"
     annotation (Placement(transformation(extent={{-10,-10},{10,10}})));

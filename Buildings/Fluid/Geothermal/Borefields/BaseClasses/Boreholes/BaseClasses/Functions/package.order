@@ -8,4 +8,5 @@ multipoleFmk
 multipoleThermalResistances
 partialInternalResistances
 Validation
-
+convectionResistanceCircularPipeOutputsFluProTemDep_Glycol25
+convectionResistanceCircularPipeTdep

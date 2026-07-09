@@ -2,6 +2,9 @@ within Buildings.Fluid.Geothermal.Borefields;
 model OneUTubeTdep "Borefield model containing single U-tube boreholes"
   extends Buildings.Fluid.Geothermal.Borefields.BaseClasses.PartialBorefield(
     redeclare Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.OneUTubeTdep borHol);
+  
+  parameter Boolean useGlycol = false;
+  parameter Real X_a = 0.25;
 
   annotation (
   defaultComponentName="borFie",
