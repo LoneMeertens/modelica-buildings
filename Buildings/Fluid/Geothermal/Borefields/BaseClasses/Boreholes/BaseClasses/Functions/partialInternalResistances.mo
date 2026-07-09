@@ -34,6 +34,8 @@ partial function partialInternalResistances
 
   // Outputs
   output Real x "Capacity location";
+  output Real Rb_multipole(unit="(m.K)/W")   // ← MOVE HERE, make it an output
+    "Fluid-to-borehole-wall resistance from multipole method";
 
 protected
   parameter Real pi = 3.141592653589793 "pi";
@@ -58,9 +60,6 @@ protected
 
   Real Rb_internal(unit="(m.K)/W")
     "Resistance from the fluid in the pipe to the borehole wall";
-
-  Real Rb_multipole(unit="(m.K)/W")
-    "Theoretical Fluid-to-borehole-wall resistance evaluated from the multipole method";
 
   Integer i=1 "Loop counter";
 
