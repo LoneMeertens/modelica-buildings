@@ -27,8 +27,6 @@ model InternalHEXOneUTube
 
 protected
   parameter Real Rgg_val(fixed=false) "Thermal resistance between the two grout zones";
-  parameter Real Rb_multipole_val(fixed=false, unit="(m.K)/W")
-    "Borehole thermal resistance from multipole method";
 
 public
   Real RVol1_val(unit="K/W") "Convective resistance (fluid 1) computed at runtime";
@@ -42,9 +40,6 @@ public
   output Modelica.Units.SI.CoefficientOfHeatTransfer h2 "Convective heat transfer coeff (fluid 2)";
   output Real Re2(unit="") "Reynolds number (fluid 2)";
   output Real NuTurb2(unit="") "Nusselt at Re=2400 (fluid 2)";
-
-  output Real Rb(unit="(m.K)/W") = Rb_multipole_val
-    "Borehole thermal resistance [K/W]";
 
 public
   Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalResistancesOneUTube
@@ -76,7 +71,7 @@ public
     annotation (Placement(transformation(extent={{-96,-18},{-76,2}})));
 
 initial equation
-  (x, Rgb_val, Rgg_val, RCondGro_val, Rb_multipole_val) =
+  (x, Rgb_val, Rgg_val, RCondGro_val) =
     Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube(
       hSeg=hSeg,
       rBor=borFieDat.conDat.rBor,

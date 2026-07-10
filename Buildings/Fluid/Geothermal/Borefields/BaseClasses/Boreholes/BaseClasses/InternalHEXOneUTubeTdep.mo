@@ -33,15 +33,8 @@ protected
   "Filtered mass flow for thermal calculations, side 1";
   Modelica.Units.SI.MassFlowRate m2_flow_dum(start=m2_flow_nominal, fixed=true)
   "Filtered mass flow for thermal calculations, side 2";
-  parameter Real Rb_multipole_val(fixed=false, unit="(m.K)/W")
-    "Borehole thermal resistance from multipole method";
 
 public
-  parameter Boolean useGlycol = false 
-  "Set true if medium is PropyleneGlycolWater";
-  parameter Real X_a = 0.25 
-  "Glycol mass fraction (used only if useGlycol=true)";
-
   // ── Media property outputs from convection resistance function ──
   Real cp1(unit="J/(kg.K)") "Specific heat capacity inlet pipe";
   Real k1(unit="W/(m.K)")   "Thermal conductivity inlet pipe";
@@ -66,9 +59,6 @@ public
   output Modelica.Units.SI.CoefficientOfHeatTransfer h2 "Convective heat transfer coeff (fluid 2)";
   output Real Re2(unit="") "Reynolds number (fluid 2)";
   output Real NuTurb2(unit="") "Nusselt at Re=2400 (fluid 2)";
-
-  output Real Rb(unit="(m.K)/W") = Rb_multipole_val
-    "Borehole thermal resistance [K/W]";
 
   Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalResistancesOneUTube
     intResUTub(
@@ -97,9 +87,16 @@ public
   Modelica.Blocks.Sources.RealExpression RVol2(y=RVol2_val)
     "Convective and thermal resistance at fluid 1"
     annotation (Placement(transformation(extent={{-96,-18},{-76,2}})));
+  
+  // ── Local function alias — binds Medium so glycol properties are used ──
+  function convResCircPipe =
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions
+    .convectionResistanceCircularPipeOutputsFluProTemDep(
+      redeclare package Medium = Medium)
+    "Convection resistance with medium correctly bound to this component's Medium";
 
 initial equation
-  (x, Rgb_val, Rgg_val, RCondGro_val, Rb_multipole_val) =
+  (x, Rgb_val, Rgg_val, RCondGro_val) =
     Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube(
       hSeg=hSeg,
       rBor=borFieDat.conDat.rBor,
@@ -122,45 +119,28 @@ equation
   tauFlow*der(m1_flow_dum) = m1_flow - m1_flow_dum;
   tauFlow*der(m2_flow_dum) = m2_flow - m2_flow_dum;
 
-  // Medium properties at current fluid temperature — pipe 1
-  cp1  = Medium.specificHeatCapacityCp(Medium.setState_pTX(Medium.p_default, vol1.T, Medium.X_default));
-  k1   = Medium.thermalConductivity(   Medium.setState_pTX(Medium.p_default, vol1.T, Medium.X_default));
-  mu1  = Medium.dynamicViscosity(      Medium.setState_pTX(Medium.p_default, vol1.T, Medium.X_default));
-  rho1 = Medium.density(               Medium.setState_pTX(Medium.p_default, vol1.T, Medium.X_default));
-
-  // Medium properties at current fluid temperature — pipe 2
-  cp2  = Medium.specificHeatCapacityCp(Medium.setState_pTX(Medium.p_default, vol2.T, Medium.X_default));
-  k2   = Medium.thermalConductivity(   Medium.setState_pTX(Medium.p_default, vol2.T, Medium.X_default));
-  mu2  = Medium.dynamicViscosity(      Medium.setState_pTX(Medium.p_default, vol2.T, Medium.X_default));
-  rho2 = Medium.density(               Medium.setState_pTX(Medium.p_default, vol2.T, Medium.X_default));
-
-
-  // Pipe 1 — evaluate medium at vol1.T, pass properties explicitly
-  (RVol1_val, Nu1, h1, Re1, NuTurb1, Pr1) =
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions
-    .convectionResistanceCircularPipeTdep(
+  // Pipe 1 — uses glycol via local function alias
+  (RVol1_val, Nu1, h1, Re1, NuTurb1, cp1, k1, mu1, rho1, Pr1) =
+    convResCircPipe(
         hSeg           = hSeg,
         rTub           = borFieDat.conDat.rTub,
         eTub           = borFieDat.conDat.eTub,
         T              = vol1.T,
         p              = Medium.p_default,
-        m_flow         = m1_flow_dum, 
-        m_flow_nominal = m1_flow_nominal,
-        useGlycol      = useGlycol, 
-        X_a            = X_a);
+        m_flow         = m1_flow_dum,
+        m_flow_nominal = m1_flow_nominal);
 
-  (RVol2_val, Nu2, h2, Re2, NuTurb2, Pr2) =
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions
-    .convectionResistanceCircularPipeTdep(
+  // Pipe 2 — uses glycol via local function alias
+  (RVol2_val, Nu2, h2, Re2, NuTurb2, cp2, k2, mu2, rho2, Pr2) =
+    convResCircPipe(
         hSeg           = hSeg,
         rTub           = borFieDat.conDat.rTub,
         eTub           = borFieDat.conDat.eTub,
-        T              = vol1.T,
+        T              = vol2.T,
         p              = Medium.p_default,
-        m_flow         = m1_flow_dum, 
-        m_flow_nominal = m1_flow_nominal,
-        useGlycol      = useGlycol, 
-        X_a            = X_a);
+        m_flow         = m2_flow_dum,
+        m_flow_nominal = m2_flow_nominal);
+
 
     assert(borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube,
   "This model should be used for single U-type borefield, not double U-type.
