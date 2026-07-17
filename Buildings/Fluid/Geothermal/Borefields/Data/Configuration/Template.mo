@@ -43,6 +43,13 @@ record Template
 
   parameter Modelica.Units.SI.Length eTub "Thickness of a tube"
     annotation (Dialog(group="Tubes"));
+  final parameter Modelica.Units.SI.Volume VTubBorFie=
+    nBor*
+    (if borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube
+       then 2 else 4)*
+    hBor*Modelica.Constants.pi*(rTub - eTub)^2
+    "Total fluid volume in the vertical pipes of the borefield"
+    annotation (Dialog(tab="Advanced", group="Derived quantities", enable=false));
 
   parameter Modelica.Units.SI.Length xC
     "Shank spacing, defined as the distance between the center of a pipe and the center of the borehole"

@@ -49,6 +49,10 @@ partial model PartialBorefield
   // General parameters of borefield
   parameter Buildings.Fluid.Geothermal.Borefields.Data.Borefield.Template borFieDat "Borefield data"
     annotation (choicesAllMatching=true,Placement(transformation(extent={{-80,-80},{-60,-60}})));
+  final parameter Modelica.Units.SI.Volume VTubBorFie=
+    borFieDat.conDat.VTubBorFie
+    "Total fluid volume in the vertical pipes of the borefield"
+    annotation (Dialog(tab="Advanced", group="Derived quantities", enable=false));
 
   // Temperature gradient in undisturbed soil
   parameter Modelica.Units.SI.Temperature TExt0_start=283.15
