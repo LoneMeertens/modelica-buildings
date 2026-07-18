@@ -7,32 +7,46 @@ model TwoUTube "Double U-tube borehole heat exchanger"
     redeclare each final package Medium = Medium,
     each final borFieDat=borFieDat,
     each final hSeg=borFieDat.conDat.hBor/nSeg,
-    final dp1_nominal={if i == 1 and borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then dp_nominal elseif i == 1 and borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeSeries
-         then dp_nominal/2 else 0 for i in 1:nSeg},
-    final dp3_nominal={if i == 1 and borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then dp_nominal elseif i == 1 and borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeSeries
-         then dp_nominal/2 else 0 for i in 1:nSeg},
+    final dp1_nominal={
+      if i == 1 and not borFieDat.conDat.use_DarcyPressureDrop and
+        borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel then
+        dp_nominal
+      elseif i == 1 and not borFieDat.conDat.use_DarcyPressureDrop and
+            borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeSeries then
+        dp_nominal/2
+      else
+        0
+      for i in 1:nSeg},
+    final dp3_nominal={
+      if i == 1 and not borFieDat.conDat.use_DarcyPressureDrop and
+        borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel then
+        dp_nominal
+      elseif i == 1 and not borFieDat.conDat.use_DarcyPressureDrop and
+            borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeSeries then
+        dp_nominal/2
+      else
+        0
+      for i in 1:nSeg},
     each final dp2_nominal=0,
     each final dp4_nominal=0,
     each final show_T=show_T,
     each final energyDynamics=energyDynamics,
     each final m1_flow_nominal=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then m_flow_nominal/2 else m_flow_nominal,
+        then m_flow_nominal/2 else m_flow_nominal,
     each final m2_flow_nominal=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then m_flow_nominal/2 else m_flow_nominal,
+        then m_flow_nominal/2 else m_flow_nominal,
     each final m3_flow_nominal=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then m_flow_nominal/2 else m_flow_nominal,
+        then m_flow_nominal/2 else m_flow_nominal,
     each final m4_flow_nominal=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then m_flow_nominal/2 else m_flow_nominal,
+        then m_flow_nominal/2 else m_flow_nominal,
     each final m1_flow_small=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then borFieDat.conDat.mBor_flow_small/2 else borFieDat.conDat.mBor_flow_small,
+        then borFieDat.conDat.mBor_flow_small/2 else borFieDat.conDat.mBor_flow_small,
     each final m2_flow_small=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then borFieDat.conDat.mBor_flow_small/2 else borFieDat.conDat.mBor_flow_small,
+        then borFieDat.conDat.mBor_flow_small/2 else borFieDat.conDat.mBor_flow_small,
     each final m3_flow_small=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then borFieDat.conDat.mBor_flow_small/2 else borFieDat.conDat.mBor_flow_small,
+        then borFieDat.conDat.mBor_flow_small/2 else borFieDat.conDat.mBor_flow_small,
     each final m4_flow_small=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
-         then borFieDat.conDat.mBor_flow_small/2 else borFieDat.conDat.mBor_flow_small,
+        then borFieDat.conDat.mBor_flow_small/2 else borFieDat.conDat.mBor_flow_small,
     each final mSenFac=mSenFac,
     each final allowFlowReversal1=allowFlowReversal,
     each final allowFlowReversal2=allowFlowReversal,
@@ -60,12 +74,48 @@ model TwoUTube "Double U-tube borehole heat exchanger"
     each final p4_start=p_start,
     final TFlu_start=TFlu_start,
     final TGro_start=TGro_start) "Discretized borehole segments"
-    annotation (Placement(transformation(extent={{-10,-30},{10,10}})));
+  annotation (Placement(transformation(extent={{-10,-30},{10,10}})));
+
+  Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropCircularPipe
+    preDro1(
+      redeclare final package Medium = Medium,
+      final m_flow_nominal=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
+        then m_flow_nominal/2 else m_flow_nominal,
+      final computePressureDrop=borFieDat.conDat.use_DarcyPressureDrop,
+      final length=2*borFieDat.conDat.hBor,
+      final rTub=borFieDat.conDat.rTub,
+      final eTub=borFieDat.conDat.eTub,
+      final roughness=borFieDat.conDat.roughness,
+      final rhoMed=rho_default,
+      final muMed=mu_default)
+    "Darcy-Weisbach pressure drop of the first vertical U-tube circuit"
+    annotation (Placement(transformation(extent={{-70,0},{-50,20}})));
+
+  Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropCircularPipe
+    preDro2(
+      redeclare final package Medium = Medium,
+      final m_flow_nominal=if borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel
+        then m_flow_nominal/2 else m_flow_nominal,
+      final computePressureDrop=borFieDat.conDat.use_DarcyPressureDrop,
+      final length=2*borFieDat.conDat.hBor,
+      final rTub=borFieDat.conDat.rTub,
+      final eTub=borFieDat.conDat.eTub,
+      final roughness=borFieDat.conDat.roughness,
+      final rhoMed=rho_default,
+      final muMed=mu_default)
+    "Darcy-Weisbach pressure drop of the second vertical U-tube circuit"
+    annotation (Placement(transformation(extent={{-70,-30},{-50,-10}})));
+
 
 equation
   // Couple borehole port_a and port_b to first borehole segment.
-  connect(port_a, intHex[1].port_a1) annotation (Line(
-      points={{-100,5.55112e-016},{-52,5.55112e-016},{-52,6},{-10,6}},
+  connect(port_a, preDro1.port_a) annotation (Line(
+      points={{-100,5.55112e-016},{-70,10}},
+      color={0,127,255},
+      smooth=Smooth.None));
+
+  connect(preDro1.port_b, intHex[1].port_a1) annotation (Line(
+      points={{-50,10},{-52,10},{-52,6},{-10,6}},
       color={0,127,255},
       smooth=Smooth.None));
   connect(port_b, intHex[1].port_b4) annotation (Line(
@@ -74,20 +124,31 @@ equation
       color={0,127,255},
       smooth=Smooth.None));
   if borFieDat.conDat.borCon == Types.BoreholeConfiguration.DoubleUTubeParallel then
-    // 2U-tube in parallel: couple both U-tube to each other.
-    connect(port_a, intHex[1].port_a3) annotation (Line(
-        points={{-100,5.55112e-016},{-52,5.55112e-016},{-52,-16.4},{-10,-16.4}},
+    // 2U-tube in parallel: couple both U-tubes to each other.
+    connect(port_a, preDro2.port_a) annotation (Line(
+        points={{-100,5.55112e-016},{-70,-20}},
         color={0,127,255},
         smooth=Smooth.None));
+
+    connect(preDro2.port_b, intHex[1].port_a3) annotation (Line(
+        points={{-50,-20},{-52,-20},{-52,-16.4},{-10,-16.4}},
+        color={0,127,255},
+        smooth=Smooth.None));
+
     connect(port_b, intHex[1].port_b2) annotation (Line(
         points={{100,5.55112e-016},{28,5.55112e-016},{28,-40},{-32,-40},{-32,-4},
             {-10,-4}},
         color={0,127,255},
         smooth=Smooth.None));
   elseif borFieDat.conDat.borCon == Types.BoreholeConfiguration.DoubleUTubeSeries then
-    // 2U-tube in serie: couple both U-tube to each other.
-    connect(intHex[1].port_b2, intHex[1].port_a3) annotation (Line(
-        points={{-10,-4},{-24,-4},{-24,-16},{-18,-16},{-18,-16.4},{-10,-16.4}},
+    // 2U-tube in series: couple both U-tubes through the second pressure-drop component.
+    connect(intHex[1].port_b2, preDro2.port_a) annotation (Line(
+        points={{-10,-4},{-24,-4},{-24,-20},{-70,-20}},
+        color={0,127,255},
+        smooth=Smooth.None));
+
+    connect(preDro2.port_b, intHex[1].port_a3) annotation (Line(
+        points={{-50,-20},{-52,-20},{-52,-16.4},{-10,-16.4}},
         color={0,127,255},
         smooth=Smooth.None));
   end if;

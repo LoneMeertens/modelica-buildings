@@ -7,7 +7,9 @@ partial model PartialBorefield
 
   extends Buildings.Fluid.Interfaces.TwoPortFlowResistanceParameters(
     final dp_nominal=borFieDat.conDat.dp_nominal,
-    final computeFlowResistance=(borFieDat.conDat.dp_nominal > Modelica.Constants.eps));
+    final computeFlowResistance=
+      borFieDat.conDat.use_DarcyPressureDrop or
+      borFieDat.conDat.dp_nominal > Modelica.Constants.eps);
 
   replaceable package Medium = Modelica.Media.Interfaces.PartialMedium "Medium in the component"
       annotation (choices(

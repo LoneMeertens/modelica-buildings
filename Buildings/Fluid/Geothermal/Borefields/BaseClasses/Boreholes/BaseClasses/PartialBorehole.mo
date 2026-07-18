@@ -26,7 +26,23 @@ partial model PartialBorehole
 
   parameter Modelica.Units.SI.Temperature TFlu_start[nSeg]=TGro_start
     "Start value of fluid temperature" annotation (Dialog(tab="Initialization"));
+  
+  protected
+    parameter Medium.ThermodynamicState state_default=
+      Medium.setState_pTX(
+        p=Medium.p_default,
+        T=Medium.T_default,
+        X=Medium.X_default[1:Medium.nXi])
+      "Default medium state";
 
+    parameter Modelica.Units.SI.Density rho_default=
+      Medium.density(state_default)
+      "Density at default medium state";
+
+    parameter Modelica.Units.SI.DynamicViscosity mu_default=
+      Medium.dynamicViscosity(state_default)
+      "Dynamic viscosity at default medium state";
+      
   // Assumptions
   parameter Modelica.Fluid.Types.Dynamics energyDynamics=Modelica.Fluid.Types.Dynamics.DynamicFreeInitial
     "Type of energy balance: dynamic (3 initialization options) or steady state"
