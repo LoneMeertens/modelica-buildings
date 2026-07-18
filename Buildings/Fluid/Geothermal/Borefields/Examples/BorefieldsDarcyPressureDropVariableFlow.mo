@@ -67,9 +67,9 @@ and replaces the constant mass-flow boundary conditions with sinusoidal
 mass-flow inputs.
 </p>
 <p>
-The mass-flow rate varies between 50% and 150% of the nominal borefield mass
-flow rate. This verifies that the Darcy-Weisbach pressure drop in the vertical
-GHE pipes is recomputed from the instantaneous mass flow rate.
+The mass-flow rate varies between 50% and 150% of the nominal borefield
+mass-flow rate. This verifies that the Darcy-Weisbach pressure drop in the
+vertical GHE pipes is recomputed from the instantaneous mass-flow rate.
 </p>
 <p>
 The expected pressure-drop magnitude ordering is
@@ -78,7 +78,8 @@ The expected pressure-drop magnitude ordering is
 abs(borFie2UTubPar.dp) &lt; abs(borFieUTub.dp) &lt; abs(borFie2UTubSer.dp)
 </pre>
 <p>
-throughout the simulation.
+throughout the simulation. The pressure drops should vary periodically with the
+imposed mass-flow signals.
 </p>
 </html>",
 revisions="<html>

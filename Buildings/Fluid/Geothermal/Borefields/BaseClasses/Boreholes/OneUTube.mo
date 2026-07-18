@@ -131,8 +131,21 @@ two pipes, and a heat resistance between the pipes and the borehole wall.
 The heat capacity of the fluid and the heat capacity of the grout are taken
 into account. The vertical heat flow is assumed to be zero.
 </p>
+<p>
+If enabled in the borefield configuration data, the vertical pipe pressure drop
+is computed using a Darcy-Weisbach pressure-drop component with a Churchill
+friction factor. The pressure drop is evaluated from the instantaneous mass-flow
+rate through the U-tube circuit.
+</p>
 </html>", revisions="<html>
 <ul>
+<li>
+July 2026, by L. Meertens:<br/>
+Added optional Darcy-Weisbach pressure-drop component for the vertical pipes of
+single U-tube boreholes.<br/>
+This is for
+<a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
+</li>
 <li>
 May 17, 2024, by Michael Wetter:<br/>
 Updated model due to removal of parameter <code>dynFil</code>.<br/>

@@ -80,6 +80,13 @@ Buildings.Fluid.Geothermal.Borefields.Data.Configuration</a>.
 revisions="<html>
 <ul>
 <li>
+July 18, 2026, by L. Meertens:<br/>
+Added parameters for Darcy-Weisbach pressure-drop calculation, pipe roughness,
+and total vertical GHE fluid volume.<br/>
+This is for
+<a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
+</li>
+<li>
 July 15, 2018, by Michael Wetter:<br/>
 Revised implementation, added <code>defaultComponentPrefixes</code> and
 <code>defaultComponentName</code>.

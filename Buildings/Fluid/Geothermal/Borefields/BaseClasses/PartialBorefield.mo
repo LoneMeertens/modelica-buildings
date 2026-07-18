@@ -304,8 +304,21 @@ Buildings.Fluid.Geothermal.Borefields.BaseClasses.HeatTransfer.GroundTemperature
 which uses a cell-shifting load aggregation technique to calculate the borehole wall
 temperature after calculating and/or read (from a previous calculation) the borefield's thermal response factor.
 </p>
+<p>
+The final parameter <code>VTubBorFie</code> exposes the total fluid volume in the
+vertical GHE pipes. Flow resistance computation is enabled if either the
+nominal pressure drop is non-zero or the Darcy-Weisbach pressure-drop option is
+selected in the borefield configuration data.
+</p>
 </html>", revisions="<html>
 <ul>
+<li>
+July 18, 2026, by L. Meertens:<br/>
+Exposed the total vertical GHE fluid volume and enabled flow-resistance
+computation when the Darcy-Weisbach pressure-drop option is selected.<br/>
+This is for
+<a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
+</li>
 <li>
 April 9, 2021, by Michael Wetter:<br/>
 Corrected placement of <code>each</code> keyword.<br/>

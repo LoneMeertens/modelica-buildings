@@ -161,6 +161,13 @@ International Journal Of Energy Research, 35:312-320, 2011.
 </html>", revisions="<html>
 <ul>
 <li>
+July 18, 2026, by L. Meertens:<br/>
+Propagated pipe roughness from the borefield configuration data to the
+convective resistance calculation.<br/>
+This is for
+<a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
+</li>
+<li>
 May 17, 2024, by Michael Wetter:<br/>
 Updated model due to removal of parameter <code>dynFil</code>.<br/>
 This is for

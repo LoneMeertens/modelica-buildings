@@ -162,9 +162,8 @@ curvature from the laminar branch at Re = 2300 and from Gnielinski at Re = 4000,
 scalars (Nu<sub>turb</sub>, dNu<sub>turb</sub>&middot;L, d&sup2;Nu<sub>turb</sub>&middot;L&sup2;) are recomputed at every function call.
 </p>
 <p>
-Pipe roughness is set to &epsilon; = 0.001 mm (smooth HDPE default). The
-relative roughness &epsilon;/<i>D</i> is computed internally from the tube
-geometry. 
+The relative roughness &epsilon;/<i>D</i> is computed from the input
+<code>roughness</code> and the inner pipe diameter.
 </p>
 <h4>References</h4>
 <p>

@@ -68,6 +68,13 @@ as several borehole segments, with a uniform borehole wall boundary condition.
 </html>", revisions="<html>
 <ul>
 <li>
+July 2026, by L. Meertens:<br/>
+Added default medium density and viscosity parameters for the Darcy-Weisbach
+pressure-drop calculation in vertical GHE pipes.<br/>
+This is for
+<a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
+</li>
+<li>
 May 17, 2024, by Michael Wetter:<br/>
 Updated model due to removal of parameter <code>dynFil</code>.<br/>
 This is for
