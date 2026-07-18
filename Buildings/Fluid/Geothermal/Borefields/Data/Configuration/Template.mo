@@ -20,6 +20,9 @@ record Template
   parameter Modelica.Units.SI.Pressure dp_nominal(displayUnit="Pa")
     "Pressure losses for the entire borefield"
     annotation (Dialog(group="Nominal condition"));
+  parameter Boolean use_DarcyPressureDrop = false
+    "Set to true to compute the vertical pipe pressure drop from Darcy-Weisbach"
+    annotation (Dialog(tab="Advanced", group="Pressure drop"));
 
   //------------------------- Geometrical parameters ---------------------------
   parameter Modelica.Units.SI.Height hBor "Total height of the borehole"
@@ -40,7 +43,6 @@ record Template
     annotation (Dialog(group="Tubes"));
   parameter Modelica.Units.SI.ThermalConductivity kTub
     "Thermal conductivity of the tube" annotation (Dialog(group="Tubes"));
-
   parameter Modelica.Units.SI.Length eTub "Thickness of a tube"
     annotation (Dialog(group="Tubes"));
   final parameter Modelica.Units.SI.Volume VTubBorFie=
@@ -50,9 +52,11 @@ record Template
     hBor*Modelica.Constants.pi*(rTub - eTub)^2
     "Total fluid volume in the vertical pipes of the borefield"
     annotation (Dialog(tab="Advanced", group="Derived quantities", enable=false));
-
   parameter Modelica.Units.SI.Length xC
     "Shank spacing, defined as the distance between the center of a pipe and the center of the borehole"
+    annotation (Dialog(group="Tubes"));
+  parameter Modelica.Units.SI.Length roughness = 0.001e-3
+    "Absolute roughness of the vertical GHE pipes"
     annotation (Dialog(group="Tubes"));
 
   //------------------------- Advanced parameters ------------------------------
