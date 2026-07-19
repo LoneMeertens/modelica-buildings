@@ -110,7 +110,7 @@ model TwoUTube "Double U-tube borehole heat exchanger"
 equation
   // Couple borehole port_a and port_b to first borehole segment.
   connect(port_a, preDro1.port_a) annotation (Line(
-      points={{-100,5.55112e-016},{-70,10}},
+      points={{-100,0},{-70,0},{-70,10}},
       color={0,127,255},
       smooth=Smooth.None));
 
@@ -126,7 +126,7 @@ equation
   if borFieDat.conDat.borCon == Types.BoreholeConfiguration.DoubleUTubeParallel then
     // 2U-tube in parallel: couple both U-tubes to each other.
     connect(port_a, preDro2.port_a) annotation (Line(
-        points={{-100,5.55112e-016},{-70,-20}},
+        points={{-100,0},{-70,0},{-70,-20}},
         color={0,127,255},
         smooth=Smooth.None));
 
