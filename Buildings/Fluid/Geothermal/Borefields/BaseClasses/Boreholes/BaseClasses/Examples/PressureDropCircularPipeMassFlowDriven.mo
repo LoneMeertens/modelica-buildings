@@ -37,14 +37,16 @@ model PressureDropCircularPipeMassFlowDriven
     use_m_flow_in=true,
     T=293.15,
     nPorts=1)
-    "Mass flow source";
+    "Mass flow source"
+    annotation (Placement(transformation(extent={{-70,-10},{-50,10}})));
 
   .Buildings.Fluid.Sources.Boundary_pT bou(
     redeclare package Medium = Medium,
     p=p0,
     T=293.15,
     nPorts=1)
-    "Pressure boundary";
+    "Pressure boundary"
+    annotation (Placement(transformation(extent={{60,-10},{80,10}})));
 
   .Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropCircularPipe preDro(
     redeclare package Medium = Medium,
@@ -56,13 +58,15 @@ model PressureDropCircularPipeMassFlowDriven
     roughness=roughness,
     rhoMed=rhoMed,
     muMed=muMed)
-    "Pressure-drop component";
+    "Pressure-drop component"
+    annotation (Placement(transformation(extent={{-10,-10},{10,10}})));
 
   .Modelica.Blocks.Sources.Sine mFlo(
     amplitude=m_flowAmplitude,
     f=1/1000,
     offset=0)
-    "Prescribed mass flow rate";
+    "Prescribed mass flow rate"
+    annotation (Placement(transformation(extent={{-100,30},{-80,50}})));
 
   .Modelica.Units.SI.MassFlowRate m_flowSet
     "Prescribed mass flow rate";
@@ -74,10 +78,14 @@ model PressureDropCircularPipeMassFlowDriven
     "Difference between component pressure drop and function evaluation";
 
 equation
-  connect(mFlo.y, sou.m_flow_in);
+  connect(mFlo.y, sou.m_flow_in)
+    annotation (Line(points={{-79,40},{-74,40},{-74,8},{-72,8}}, color={0,0,127}));
 
-  connect(sou.ports[1], preDro.port_a);
-  connect(preDro.port_b, bou.ports[1]);
+  connect(sou.ports[1], preDro.port_a)
+    annotation (Line(points={{-50,0},{-10,0}}, color={0,127,255}));
+
+  connect(preDro.port_b, bou.ports[1])
+    annotation (Line(points={{10,0},{60,0}}, color={0,127,255}));
 
   m_flowSet = mFlo.y;
 
