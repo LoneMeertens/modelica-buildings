@@ -12,27 +12,26 @@ function churchillFrictionFactor
     "Darcy-Weisbach friction factor";
 
 protected
-  Real ReEff
-    "Reynolds number limited to a small positive value to avoid division by zero";
   Real A
     "Churchill coefficient A";
   Real B
     "Churchill coefficient B";
 
 algorithm
-  ReEff := max(Re, 1e-6);
+  assert(Re > 0, "churchillFrictionFactor requires Re > 0.");
+  
   A := (2.457*.Modelica.Math.log(
-          1/((7/ReEff)^0.9 + 0.27*eps_D)))^16;
-  B := (37530/ReEff)^16;
+          1/((7/Re)^0.9 + 0.27*eps_D)))^16;
+  B := (37530/Re)^16;
 
-  f := 8*((8/ReEff)^12 + 1/(A + B)^(3/2))^(1/12);
+  f := 8*((8/Re)^12 + 1/(A + B)^(3/2))^(1/12);
 
-  annotation (Documentation(info="<html>
+annotation (Documentation(info="<html>
 <p>
 This function computes the Darcy-Weisbach friction factor <i>f</i> for internal
-pipe flow using the explicit correlation of Churchill (1977), which is valid
-across all flow regimes (laminar, transitional, and turbulent) without regime
-switching.
+pipe flow using the explicit correlation of Churchill (1977). The correlation is
+valid for strictly positive Reynolds numbers and covers laminar, transitional,
+and turbulent flow without regime switching.
 </p>
 <p>
 The correlation is:
@@ -53,10 +52,11 @@ Key properties of this correlation:
 </p>
 <ul>
 <li>
-Explicit — no iteration required.
+Explicit &mdash; no iteration required.
 </li>
 <li>
-C&infin; smooth across all Reynolds numbers — no regime switching.
+Smooth for <i>Re</i> &gt; 0 and continuous across laminar, transitional, and
+turbulent regimes without regime switching.
 </li>
 <li>
 Asymptotes to <i>f</i> = 64/<i>Re</i> in the laminar regime.
@@ -66,8 +66,17 @@ Agrees with Colebrook-White to within 2% in the turbulent regime.
 </li>
 </ul>
 <p>
+The raw friction factor is singular at <i>Re</i> = 0. Therefore, this function
+requires <i>Re</i> &gt; 0. For pressure-drop calculations that need to include
+zero flow, use
+<a href=\"modelica://Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2\">
+Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2</a>,
+which returns the regularized modified friction coefficient
+<i>&lambda;<sub>2</sub> = f Re<sup>2</sup></i>.
+</p>
+<p>
 The input <code>eps_D</code> is the relative roughness &epsilon;/<i>D</i>.
-For smooth pipes (e.g. HDPE), use <code>eps_D = 0</code>.
+For smooth pipes, use <code>eps_D = 0</code>.
 </p>
 <h4>References</h4>
 <p>
@@ -83,4 +92,5 @@ This is for <a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4655\
 </li>
 </ul>
 </html>"));
+
 end churchillFrictionFactor;

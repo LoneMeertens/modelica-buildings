@@ -40,11 +40,8 @@ model PressureLossCircularPipe
   Modelica.Units.SI.PressureDifference dp
     "Pressure drop";
 
-  Real f
-    "Darcy-Weisbach friction factor";
-
-  Real lambda2
-    "Modified friction coefficient lambda*Re^2";
+  Modelica.Units.SI.PressureDifference dp_lam
+    "Laminar pressure-drop reference";
 
 equation
   Re = time;
@@ -60,17 +57,10 @@ equation
       rhoMed=rhoMed,
       muMed=muMed,
       m_flow=m_flow);
-
-  f =
-    Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactor(
-      Re=Re,
-      eps_D=roughness/diameter);
-
-  lambda2 =
-    if Re <= 1E-6 then
-      64*Re
-    else
-      f*Re^2;
+  
+  dp_lam =
+    hSeg*muMed^2/(2*rhoMed*diameter^3)*
+    64*Re;
 
   annotation (
     __Dymola_Commands(file=
@@ -95,6 +85,12 @@ allows plotting the pressure drop as a direct function of Reynolds number.
 The validation checks that the pressure drop is finite at zero flow, increases
 smoothly with Reynolds number, and follows the laminar pressure-loss limit for
 small Reynolds numbers.
+</p>
+<p>
+The validation also computes the laminar reference pressure drop based on
+<i>&lambda;<sub>2</sub> = 64 Re</i>. This allows checking that the implemented
+pressure-drop function follows the correct linear pressure-flow relation near
+zero flow.
 </p>
 </html>",
 revisions="<html>

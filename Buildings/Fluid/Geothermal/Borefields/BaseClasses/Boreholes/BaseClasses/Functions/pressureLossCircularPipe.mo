@@ -28,9 +28,6 @@ function pressureLossCircularPipe
     "Pressure drop";
 
 protected
-  constant Real Re_min = 1e-6
-    "Small Reynolds number below which the laminar limit is used";
-
   Modelica.Units.SI.Radius rTub_in = rTub - eTub
     "Inner tube radius";
 
@@ -61,25 +58,25 @@ algorithm
     "The fluid dynamic viscosity muMed must be positive.");
 
   Re := diameter*abs(m_flow)/(crossArea*muMed);
-
+  
   /*
     Use lambda2 = lambda*Re^2 for pressure drop.
 
-    For very small Reynolds numbers, do not call the Churchill function with
-    Re limited by ReEff and then multiply by Re^2, because that would give
-    an artificial quadratic pressure drop below ReEff.
+    The raw Darcy friction factor lambda is singular at Re = 0.
+    Therefore, evaluate the modified coefficient lambda2 directly.
 
-    Instead, use the exact laminar limit:
+    For very small Reynolds numbers, churchillFrictionFactorRe2 uses
+    the laminar limit:
       lambda = 64/Re
       lambda2 = lambda*Re^2 = 64*Re
+
+    This gives the correct linear pressure-flow relation near zero flow.
   */
+
   lambda2 :=
-    if Re <= Re_min then
-      64*Re
-    else
-      Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactor(
+    Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2(
         Re=Re,
-        eps_D=eps_D)*Re^2;
+        eps_D=eps_D);
 
   dp :=
     length*muMed^2/(2*rhoMed*diameter^3)*
@@ -87,31 +84,49 @@ algorithm
 
     annotation (
     smoothOrder=1,
-    Documentation(info="<html>
+Documentation(info="<html>
 <p>
 This function computes the pressure loss in a circular pipe using the
-Darcy-Weisbach equation. The Darcy friction factor is computed using the
-Churchill correlation.
+Darcy-Weisbach equation.
 </p>
 <p>
 The implementation uses the modified friction coefficient
 </p>
 <p align=\"center\" style=\"font-style:italic;\">
-  &lambda;<sub>2</sub> = &lambda; Re<sup>2</sup>
+  &lambda;<sub>2</sub> = f Re<sup>2</sup>,
 </p>
 <p>
-and evaluates the pressure drop as
+where <i>f</i> is the Darcy-Weisbach friction factor. The modified coefficient
+is evaluated by
+<a href=\"modelica://Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2\">
+Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2</a>,
+which uses the Churchill (1977) friction-factor correlation for positive
+Reynolds numbers and the laminar limit
+<i>&lambda;<sub>2</sub> = 64 Re</i> near zero flow.
+</p>
+<p>
+The Reynolds number is
+</p>
+<p align=\"center\" style=\"font-style:italic;\">
+  Re = D |m&#775;| / (A &mu;),
+</p>
+<p>
+where <i>D</i> is the inner pipe diameter, <i>A</i> is the inner pipe
+cross-sectional area, <i>&mu;</i> is the dynamic viscosity, and
+<i>m&#775;</i> is the mass flow rate.
+</p>
+<p>
+The pressure drop is evaluated as
 </p>
 <p align=\"center\" style=\"font-style:italic;\">
   &Delta;p =
-  L &mu;<sup>2</sup> &lambda;<sub>2</sub> /
+  sign(m&#775;) L &mu;<sup>2</sup> &lambda;<sub>2</sub> /
   (2 &rho; D<sup>3</sup>).
 </p>
 <p>
-For very small Reynolds numbers, the laminar limit
-&lambda;<sub>2</sub> = 64 Re is used. This avoids evaluating the pressure drop
-from a Reynolds-number-limited friction factor, which would otherwise give an
-artificial quadratic pressure-flow relation near zero flow.
+Using <i>&lambda;<sub>2</sub></i> avoids evaluating the singular raw friction
+factor at zero flow. In the laminar limit, this gives the correct linear
+pressure-flow relation.
 </p>
 <h4>References</h4>
 <p>

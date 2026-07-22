@@ -28,7 +28,7 @@ model ChurchillFrictionFactor
   Real f_lam    "Laminar reference: 64/Re";
 
 equation
-  Re = time;
+  Re = time+1e-6;
 
   f_smooth = Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactor(
     Re=Re,
@@ -52,7 +52,8 @@ This example validates the implementation of
 Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactor</a>.
 </p>
 <p>
-The Reynolds number increases with time so that <i>Re = t</i>,
+The Reynolds number increases with time so that <i>Re = t + 10<sup>-6</sup></i>,
+which avoids evaluating the raw Darcy friction factor at <i>Re</i> = 0,
 sweeping the full laminar–transitional–turbulent range
 over the simulation interval 0–30 000 s.
 Two cases are compared using the same pipe geometry
