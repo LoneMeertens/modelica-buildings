@@ -1,0 +1,146 @@
+within Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Examples;
+model PressureDropCircularPipeMassFlowDriven
+  "Validation of PressureDropCircularPipe with mass-flow-driven flow"
+  extends .Modelica.Icons.Example;
+
+  package Medium = .Buildings.Media.Water;
+
+  parameter .Modelica.Units.SI.Pressure p0 = 300000
+    "Boundary pressure";
+
+  parameter .Modelica.Units.SI.MassFlowRate m_flow_nominal = 0.3
+    "Nominal mass flow rate";
+
+  parameter .Modelica.Units.SI.MassFlowRate m_flowAmplitude = 0.3
+    "Amplitude of imposed mass flow rate";
+
+  parameter .Modelica.Units.SI.Length length = 100
+    "Pipe length";
+
+  parameter .Modelica.Units.SI.Radius rTub = 0.02
+    "Outer tube radius";
+
+  parameter .Modelica.Units.SI.Length eTub = 0.002
+    "Tube wall thickness";
+
+  parameter .Modelica.Units.SI.Length roughness = 0.001e-3
+    "Absolute pipe wall roughness";
+
+  parameter .Modelica.Units.SI.Density rhoMed = 1000
+    "Fluid density";
+
+  parameter .Modelica.Units.SI.DynamicViscosity muMed = 1e-3
+    "Fluid dynamic viscosity";
+
+  .Buildings.Fluid.Sources.MassFlowSource_T sou(
+    redeclare package Medium = Medium,
+    use_m_flow_in=true,
+    T=293.15,
+    nPorts=1)
+    "Mass flow source";
+
+  .Buildings.Fluid.Sources.Boundary_pT bou(
+    redeclare package Medium = Medium,
+    p=p0,
+    T=293.15,
+    nPorts=1)
+    "Pressure boundary";
+
+  .Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropCircularPipe preDro(
+    redeclare package Medium = Medium,
+    m_flow_nominal=m_flow_nominal,
+    computePressureDrop=true,
+    length=length,
+    rTub=rTub,
+    eTub=eTub,
+    roughness=roughness,
+    rhoMed=rhoMed,
+    muMed=muMed)
+    "Pressure-drop component";
+
+  .Modelica.Blocks.Sources.Sine mFlo(
+    amplitude=m_flowAmplitude,
+    f=1/1000,
+    offset=0)
+    "Prescribed mass flow rate";
+
+  .Modelica.Units.SI.MassFlowRate m_flowSet
+    "Prescribed mass flow rate";
+
+  .Modelica.Units.SI.PressureDifference dpFun
+    "Pressure drop recomputed from imposed mass flow rate";
+
+  .Modelica.Units.SI.PressureDifference errDp
+    "Difference between component pressure drop and function evaluation";
+
+equation
+  connect(mFlo.y, sou.m_flow_in);
+
+  connect(sou.ports[1], preDro.port_a);
+  connect(preDro.port_b, bou.ports[1]);
+
+  m_flowSet = mFlo.y;
+
+  dpFun =
+    .Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe(
+      length=length,
+      rTub=rTub,
+      eTub=eTub,
+      roughness=roughness,
+      rhoMed=rhoMed,
+      muMed=muMed,
+      m_flow=preDro.m_flow);
+
+  errDp = preDro.dp - dpFun;
+
+  annotation (
+    __Dymola_Commands(file=
+      "modelica://Buildings/Resources/Scripts/Dymola/Fluid/Geothermal/Borefields/BaseClasses/Boreholes/BaseClasses/Validation/PressureDropCircularPipeMassFlowDriven.mos"
+      "Simulate and plot"),
+    experiment(
+      StopTime=2000,
+      Tolerance=1e-6),
+    Documentation(info="<html>
+<p>
+This validation model checks the mass-flow-driven use case of
+<a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropCircularPipe\">
+Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropCircularPipe</a>.
+</p>
+<p>
+The mass flow rate is imposed by a mass flow source, and the pressure drop is
+computed by the pressure-drop component.
+</p>
+<p>
+This validates the component-level forward relation
+</p>
+<p align=\"center\" style=\"font-style:italic;\">
+  m&#775; &rarr; &Delta;p.
+</p>
+<p>
+The imposed mass flow rate is sinusoidal and crosses zero. This checks positive
+flow, reverse flow, and the low-flow region.
+</p>
+<p>
+The model also recomputes the pressure drop with
+<a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe\">
+Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe</a>
+using the mass flow rate solved in the component. The variable
+<code>errDp</code> should remain close to zero.
+</p>
+<p>
+This validation complements the pressure-driven validation model, which imposes
+the pressure difference and lets the hydraulic network solve for the mass flow
+rate.
+</p>
+</html>",
+revisions="<html>
+<ul>
+<li>
+July 22, 2026, by L. Meertens:<br/>
+First implementation.<br/>
+This is for
+<a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
+</li>
+</ul>
+</html>"));
+end PressureDropCircularPipeMassFlowDriven;
