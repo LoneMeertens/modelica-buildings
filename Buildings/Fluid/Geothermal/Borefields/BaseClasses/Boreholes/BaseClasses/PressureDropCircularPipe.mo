@@ -56,6 +56,23 @@ equation
   port_b.C_outflow = inStream(port_a.C_outflow);
 
   annotation (
+    Icon(
+      coordinateSystem(
+        preserveAspectRatio=false,
+        extent={{-100,-100},{100,100}}),
+      graphics={
+        Line(
+          points={{-100,0},{-60,0}},
+          color={0,127,255},
+          thickness=1),
+        Line(
+          points={{60,0},{100,0}},
+          color={0,127,255},
+          thickness=1),
+        Line(
+          points={{-60,0},{-45,25},{-30,-25},{-15,25},{0,-25},{15,25},{30,-25},{45,25},{60,0}},
+          color={0,127,255},
+          thickness=1)}),
     Documentation(info="<html>
 <p>
 This model computes the pressure loss of a circular vertical ground heat
@@ -85,9 +102,7 @@ For a single U-tube, use <code>nUBend=1</code>. For a double U-tube, use
 <p>
 If <code>computePressureDrop=false</code>, this component imposes zero pressure
 drop and acts as a hydraulic pass-through. In that case, U-bend minor losses are
-not included. This allows higher-level borehole models to preserve the previous
-fixed nominal pressure-drop behavior when the Darcy-Weisbach calculation is
-disabled.
+not included.
 </p>
 
 <p>
@@ -99,14 +114,6 @@ Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Function
 </html>",
 revisions="<html>
 <ul>
-<li>
-July 2026, by L. Meertens:<br/>
-Added U-bend minor losses to the Darcy-Weisbach pressure-drop calculation.
-Minor losses are included when <code>computePressureDrop=true</code> and are
-omitted when the component is used as a hydraulic pass-through.<br/>
-This is for
-<a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
-</li>
 <li>
 July 18, 2026, by L. Meertens:<br/>
 First implementation for Darcy-Weisbach pressure-drop calculation in vertical
