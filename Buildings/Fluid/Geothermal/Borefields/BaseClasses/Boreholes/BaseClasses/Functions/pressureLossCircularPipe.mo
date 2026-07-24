@@ -5,58 +5,43 @@ function pressureLossCircularPipe
 
   input Modelica.Units.SI.Length length
     "Pipe length";
-
   input Modelica.Units.SI.Radius rTub
     "Outer tube radius";
-
   input Modelica.Units.SI.Length eTub
     "Tube wall thickness";
-
   input Modelica.Units.SI.Length roughness = 0.001e-3
     "Absolute pipe wall roughness";
-
   input Modelica.Units.SI.Density rhoMed
     "Fluid density";
-
   input Modelica.Units.SI.DynamicViscosity muMed
     "Fluid dynamic viscosity";
-
   input Modelica.Units.SI.MassFlowRate m_flow
     "Mass flow rate";
-
   output Modelica.Units.SI.PressureDifference dp
     "Pressure drop";
 
 protected
   Modelica.Units.SI.Radius rTub_in = rTub - eTub
     "Inner tube radius";
-
   Modelica.Units.SI.Diameter diameter = 2*rTub_in
     "Inner tube diameter";
-
   Modelica.Units.SI.Area crossArea =
     Modelica.Constants.pi*rTub_in^2
     "Inner cross-sectional area";
-
   Real eps_D = roughness/diameter
     "Relative roughness";
-
   Modelica.Units.SI.ReynoldsNumber Re
     "Reynolds number";
-
   Real lambda2
     "Modified friction coefficient, lambda*Re^2";
 
 algorithm
   assert(rTub > eTub,
     "The outer tube radius rTub must be larger than the tube wall thickness eTub.");
-
   assert(rhoMed > 0,
     "The fluid density rhoMed must be positive.");
-
   assert(muMed > 0,
     "The fluid dynamic viscosity muMed must be positive.");
-
   Re := diameter*abs(m_flow)/(crossArea*muMed);
   
   /*

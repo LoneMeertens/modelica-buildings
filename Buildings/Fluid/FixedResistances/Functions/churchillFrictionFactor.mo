@@ -7,7 +7,6 @@ function churchillFrictionFactor
     "Reynolds number";
   input Real eps_D(min=0)
     "Relative pipe roughness, epsilon/D";
-
   output Real f
     "Darcy-Weisbach friction factor";
 
@@ -18,8 +17,9 @@ protected
     "Churchill coefficient B";
 
 algorithm
-  assert(Re > 0, "churchillFrictionFactor requires Re > 0.");
-  
+  assert(noEvent(Re > 0),
+    "churchillFrictionFactor requires Re > 0. "
+    + "Use churchillFrictionFactorRe2 for zero-flow pressure-loss regularization.");  
   A := (2.457*.Modelica.Math.log(
           1/((7/Re)^0.9 + 0.27*eps_D)))^16;
   B := (37530/Re)^16;
