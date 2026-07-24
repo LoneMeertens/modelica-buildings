@@ -3,12 +3,12 @@ function churchillFrictionFactorRe2
   "Modified friction coefficient lambda2 = f*Re^2 using Churchill correlation"
   extends .Modelica.Icons.Function;
 
-input Real Re(unit="1")
-  "Reynolds number";
-input Real eps_D(unit="1")
-  "Relative roughness";
-output Real lambda2(unit="1")
-  "Darcy friction factor multiplied by Re^2";
+  input Real Re(unit="1")
+    "Reynolds number";
+  input Real eps_D(unit="1")
+    "Relative roughness";
+  output Real lambda2(unit="1")
+    "Darcy friction factor multiplied by Re^2";
 
 protected
   constant Real Re_min(unit="1") = 1e-6

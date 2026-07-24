@@ -5,41 +5,30 @@ model PressureLossCircularPipe
 
   parameter Modelica.Units.SI.Length hSeg = 100
     "Length of the pipe";
-
   parameter Modelica.Units.SI.Radius rTub = 0.02
     "Outer tube radius";
-
   parameter Modelica.Units.SI.Length eTub = 0.002
     "Tube wall thickness";
-
   parameter Modelica.Units.SI.Length roughness = 0.001e-3
     "Absolute pipe wall roughness";
-
   parameter Modelica.Units.SI.Density rhoMed = 1000
     "Density of the fluid";
-
   parameter Modelica.Units.SI.DynamicViscosity muMed = 1E-3
     "Dynamic viscosity of the fluid";
-
   final parameter Modelica.Units.SI.Radius rTub_in = rTub - eTub
     "Inner tube radius";
-
   final parameter Modelica.Units.SI.Diameter diameter = 2*rTub_in
     "Inner tube diameter";
-
   final parameter Modelica.Units.SI.Area crossArea =
     Modelica.Constants.pi*rTub_in^2
     "Inner cross-sectional area";
 
   Modelica.Units.SI.ReynoldsNumber Re
     "Reynolds number";
-
   Modelica.Units.SI.MassFlowRate m_flow
     "Mass flow rate";
-
   Modelica.Units.SI.PressureDifference dp
     "Pressure drop";
-
   Modelica.Units.SI.PressureDifference dp_lam
     "Laminar pressure-drop reference";
 
