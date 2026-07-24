@@ -7,30 +7,29 @@ model PressureDropCircularPipeMassFlowDriven
 
   parameter .Modelica.Units.SI.Pressure p0 = 300000
     "Boundary pressure";
-
   parameter .Modelica.Units.SI.MassFlowRate m_flow_nominal = 0.3
     "Nominal mass flow rate";
-
   parameter .Modelica.Units.SI.MassFlowRate m_flowAmplitude = 0.3
     "Amplitude of imposed mass flow rate";
-
   parameter .Modelica.Units.SI.Length length = 100
     "Pipe length";
-
   parameter .Modelica.Units.SI.Radius rTub = 0.02
     "Outer tube radius";
-
   parameter .Modelica.Units.SI.Length eTub = 0.002
     "Tube wall thickness";
-
   parameter .Modelica.Units.SI.Length roughness = 0.001e-3
     "Absolute pipe wall roughness";
-
   parameter .Modelica.Units.SI.Density rhoMed = 1000
     "Fluid density";
-
   parameter .Modelica.Units.SI.DynamicViscosity muMed = 1e-3
     "Fluid dynamic viscosity";
+  parameter Integer nUBend(min=0) = 1
+    "Number of U-bends";
+  parameter Real KUBend(unit="1", min=0) = 2
+    "Minor-loss coefficient of one U-bend";
+
+  final parameter Real KMinor(unit="1") = nUBend*KUBend
+    "Total minor-loss coefficient";
 
   .Buildings.Fluid.Sources.MassFlowSource_T sou(
     redeclare package Medium = Medium,
@@ -57,7 +56,9 @@ model PressureDropCircularPipeMassFlowDriven
     eTub=eTub,
     roughness=roughness,
     rhoMed=rhoMed,
-    muMed=muMed)
+    muMed=muMed,
+    nUBend=nUBend,
+    KUBend=KUBend)
     "Pressure-drop component"
     annotation (Placement(transformation(extent={{-10,-10},{10,10}})));
 
@@ -73,6 +74,12 @@ model PressureDropCircularPipeMassFlowDriven
 
   .Modelica.Units.SI.PressureDifference dpFun
     "Pressure drop recomputed from imposed mass flow rate";
+
+  .Modelica.Units.SI.PressureDifference dpFunNoMinor
+    "Pressure drop recomputed without minor losses";
+
+  .Modelica.Units.SI.PressureDifference dpMinor
+    "Minor-loss contribution";
 
   .Modelica.Units.SI.PressureDifference errDp
     "Difference between component pressure drop and function evaluation";
@@ -97,7 +104,21 @@ equation
       roughness=roughness,
       rhoMed=rhoMed,
       muMed=muMed,
-      m_flow=preDro.m_flow);
+      m_flow=preDro.m_flow,
+      KMinor=KMinor);
+
+  dpFunNoMinor =
+    .Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe(
+      length=length,
+      rTub=rTub,
+      eTub=eTub,
+      roughness=roughness,
+      rhoMed=rhoMed,
+      muMed=muMed,
+      m_flow=preDro.m_flow,
+      KMinor=0);
+
+  dpMinor = dpFun - dpFunNoMinor;
 
   errDp = preDro.dp - dpFun;
 
@@ -114,31 +135,33 @@ This validation model checks the mass-flow-driven use case of
 <a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropCircularPipe\">
 Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropCircularPipe</a>.
 </p>
+
 <p>
 The mass flow rate is imposed by a mass flow source, and the pressure drop is
-computed by the pressure-drop component.
-</p>
-<p>
-This validates the component-level forward relation
+computed by the pressure-drop component. This validates the forward hydraulic
+relation
 </p>
 <p align=\"center\" style=\"font-style:italic;\">
   m&#775; &rarr; &Delta;p.
 </p>
+
 <p>
 The imposed mass flow rate is sinusoidal and crosses zero. This checks positive
 flow, reverse flow, and the low-flow region.
 </p>
+
 <p>
-The model also recomputes the pressure drop with
+The model recomputes the pressure drop with
 <a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe\">
 Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe</a>
-using the mass flow rate solved in the component. The variable
-<code>errDp</code> should remain close to zero.
+using the mass flow rate from the component. The variable <code>errDp</code>
+should remain close to zero.
 </p>
+
 <p>
-This validation complements the pressure-driven validation model, which imposes
-the pressure difference and lets the hydraulic network solve for the mass flow
-rate.
+The variable <code>dpFunNoMinor</code> is the pressure drop without U-bend
+minor losses, and <code>dpMinor</code> is the added U-bend minor-loss
+contribution.
 </p>
 </html>",
 revisions="<html>
@@ -151,4 +174,5 @@ This is for
 </li>
 </ul>
 </html>"));
+
 end PressureDropCircularPipeMassFlowDriven;

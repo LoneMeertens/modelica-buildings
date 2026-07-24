@@ -17,6 +17,8 @@ function pressureLossCircularPipe
     "Fluid dynamic viscosity";
   input Modelica.Units.SI.MassFlowRate m_flow
     "Mass flow rate";
+  input Real KMinor(unit="1", min=0) = 0
+    "Sum of minor-loss coefficients";
   output Modelica.Units.SI.PressureDifference dp
     "Pressure drop";
 
@@ -34,6 +36,10 @@ protected
     "Reynolds number";
   Real lambda2
     "Modified friction coefficient, lambda*Re^2";
+  Modelica.Units.SI.PressureDifference dpAbsMajor
+    "Absolute major pressure drop";
+  Modelica.Units.SI.PressureDifference dpAbsMinor
+    "Absolute minor pressure drop";
 
 algorithm
   assert(rTub > eTub,
@@ -42,53 +48,51 @@ algorithm
     "The fluid density rhoMed must be positive.");
   assert(muMed > 0,
     "The fluid dynamic viscosity muMed must be positive.");
+  assert(KMinor >= 0,
+    "The minor-loss coefficient KMinor must be non-negative.");
+
   Re := diameter*abs(m_flow)/(crossArea*muMed);
-  
-  /*
-    Use lambda2 = lambda*Re^2 for pressure drop.
-
-    The raw Darcy friction factor lambda is singular at Re = 0.
-    Therefore, evaluate the modified coefficient lambda2 directly.
-
-    For very small Reynolds numbers, churchillFrictionFactorRe2 uses
-    the laminar limit:
-      lambda = 64/Re
-      lambda2 = lambda*Re^2 = 64*Re
-
-    This gives the correct linear pressure-flow relation near zero flow.
-  */
 
   lambda2 :=
     Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2(
-        Re=Re,
-        eps_D=eps_D);
+      Re=Re,
+      eps_D=eps_D);
 
-  dp :=
-    length*muMed^2/(2*rhoMed*diameter^3)*
-    (if m_flow >= 0 then lambda2 else -lambda2);
+  /*
+    Major Darcy-Weisbach pressure loss:
+      dp_major =
+        sign(m_flow) * L*mu^2/(2*rho*D^3) * lambda2
+    with
+      lambda2 = f*Re^2.
+    Minor loss:
+      dp_minor =
+        sign(m_flow) * KMinor*rho*v^2/2
+    which can be written with Re as
+      dp_minor =
+        sign(m_flow) * KMinor*mu^2*Re^2/(2*rho*D^2).
+  */
 
-    annotation (
+  dpAbsMajor :=
+    length*muMed^2/(2*rhoMed*diameter^3)*lambda2;
+
+  dpAbsMinor :=
+    KMinor*muMed^2/(2*rhoMed*diameter^2)*Re^2;
+
+  dp := smooth(1,
+    if noEvent(m_flow >= 0) then
+      dpAbsMajor + dpAbsMinor
+    else
+     -dpAbsMajor - dpAbsMinor);
+
+  annotation (
     smoothOrder=1,
-Documentation(info="<html>
+    Documentation(info="<html>
 <p>
 This function computes the pressure loss in a circular pipe using the
-Darcy-Weisbach equation.
+Darcy-Weisbach equation. The result includes the major pipe-friction loss and,
+optionally, a minor-loss contribution represented by a loss coefficient.
 </p>
-<p>
-The implementation uses the modified friction coefficient
-</p>
-<p align=\"center\" style=\"font-style:italic;\">
-  &lambda;<sub>2</sub> = f Re<sup>2</sup>,
-</p>
-<p>
-where <i>f</i> is the Darcy-Weisbach friction factor. The modified coefficient
-is evaluated by
-<a href=\"modelica://Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2\">
-Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2</a>,
-which uses the Churchill (1977) friction-factor correlation for positive
-Reynolds numbers and the laminar limit
-<i>&lambda;<sub>2</sub> = 64 Re</i> near zero flow.
-</p>
+
 <p>
 The Reynolds number is
 </p>
@@ -96,23 +100,76 @@ The Reynolds number is
   Re = D |m&#775;| / (A &mu;),
 </p>
 <p>
-where <i>D</i> is the inner pipe diameter, <i>A</i> is the inner pipe
-cross-sectional area, <i>&mu;</i> is the dynamic viscosity, and
-<i>m&#775;</i> is the mass flow rate.
+where <i>Re</i> is the Reynolds number, <i>D</i> is the inner pipe diameter,
+<i>A</i> is the inner pipe cross-sectional area, <i>m&#775;</i> is the mass
+flow rate, and <i>&mu;</i> is the dynamic viscosity.
+</p>
+
+<p>
+The major pressure loss is evaluated as
+</p>
+<p align=\"center\" style=\"font-style:italic;\">
+  &Delta;p<sub>major</sub> =
+  sign(m&#775;) L &mu;<sup>2</sup> &lambda;<sub>2</sub> /
+  (2 &rho; D<sup>3</sup>),
 </p>
 <p>
-The pressure drop is evaluated as
+where <i>L</i> is the pipe length, <i>&rho;</i> is the fluid density, and
+</p>
+<p align=\"center\" style=\"font-style:italic;\">
+  &lambda;<sub>2</sub> = f Re<sup>2</sup>.
+</p>
+<p>
+The modified friction coefficient <i>&lambda;<sub>2</sub></i> is evaluated by
+<a href=\"modelica://Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2\">
+Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactorRe2</a>.
+This avoids evaluating the singular raw friction factor at zero flow and gives
+the correct laminar limit near zero Reynolds number.
+</p>
+
+<p>
+The minor pressure loss is evaluated using
+</p>
+<p align=\"center\" style=\"font-style:italic;\">
+  &Delta;p<sub>minor</sub> =
+  sign(m&#775;) K<sub>minor</sub> &rho; v<sup>2</sup>/2,
+</p>
+<p>
+where <i>K<sub>minor</sub></i> is the sum of the minor-loss coefficients and
+<i>v = |m&#775;| / (&rho; A)</i> is the mean flow velocity. Equivalently, this
+is implemented as
+</p>
+<p align=\"center\" style=\"font-style:italic;\">
+  &Delta;p<sub>minor</sub> =
+  sign(m&#775;) K<sub>minor</sub> &mu;<sup>2</sup> Re<sup>2</sup> /
+  (2 &rho; D<sup>2</sup>).
+</p>
+
+<p>
+The total pressure loss is
 </p>
 <p align=\"center\" style=\"font-style:italic;\">
   &Delta;p =
-  sign(m&#775;) L &mu;<sup>2</sup> &lambda;<sub>2</sub> /
-  (2 &rho; D<sup>3</sup>).
+  &Delta;p<sub>major</sub> + &Delta;p<sub>minor</sub>.
+</p>
+
+<p>
+If <code>KMinor=0</code>, only the major Darcy-Weisbach pipe-friction loss is
+included.
+</p>
+
+<p>
+Equivalent-length data may be converted to an approximate loss coefficient at a
+documented reference condition using
+</p>
+<p align=\"center\" style=\"font-style:italic;\">
+  K = f L<sub>eq</sub> / D.
 </p>
 <p>
-Using <i>&lambda;<sub>2</sub></i> avoids evaluating the singular raw friction
-factor at zero flow. In the laminar limit, this gives the correct linear
-pressure-flow relation.
+Because <i>f</i> depends on the flow regime, this conversion should be based on
+a specified nominal or reference condition.
 </p>
+
 <h4>References</h4>
 <p>
 Churchill, S. W. (1977). Friction-factor equation spans all fluid-flow regimes.
@@ -122,7 +179,7 @@ Churchill, S. W. (1977). Friction-factor equation spans all fluid-flow regimes.
 revisions="<html>
 <ul>
 <li>
-17 July, 2026, by L. Meertens:<br/>
+July 2026, by L. Meertens:<br/>
 First implementation.<br/>
 This is for
 <a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
