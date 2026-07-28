@@ -1,13 +1,13 @@
 within Testing.BorefieldComparisonTests.Examples;
 
 
-  model BTES_30Zones_OnePerBorehole
-    "Case 4: zoned BTES model with one zone per physical borehole"
+  model BTES_3Zones_Rows_3x10
+    "Case 2: zoned BTES model with 3 row zones"
 
     extends Modelica.Icons.Example;
     extends .Testing.BorefieldComparisonTests.BaseClasses.PartialZonedBTES(
-      nZon = 30,
-      nBorPerZon = .Testing.BorefieldComparisonTests.Data.nBorPerZone_30);
+      nZon = 3,
+      nBorPerZon = .Testing.BorefieldComparisonTests.Data.nBorPerZone_3);
 
     .Buildings.Fluid.Geothermal.ZonedBorefields.OneUTube borFie(
       redeclare package Medium = .Testing.BorefieldComparisonTests.Medium,
@@ -23,10 +23,10 @@ within Testing.BorefieldComparisonTests.Examples;
         conDat(
           borCon = .Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube,
           use_Rb = false,
-          nZon = 30,
-          iZon = .Testing.BorefieldComparisonTests.Data.boreholeZone,
-          mBor_flow_nominal = fill(.Testing.BorefieldComparisonTests.Data.mBor_flow_nominal, 30),
-          dp_nominal = fill(.Testing.BorefieldComparisonTests.Data.dpZon_nominal, 30),
+          nZon = 3,
+          iZon = .Testing.BorefieldComparisonTests.Data.rowZone,
+          mBor_flow_nominal = fill(.Testing.BorefieldComparisonTests.Data.mBor_flow_nominal, 3),
+          dp_nominal = fill(.Testing.BorefieldComparisonTests.Data.dpZon_nominal, 3),
           hBor = .Testing.BorefieldComparisonTests.Data.borHolDepth,
           rBor = .Testing.BorefieldComparisonTests.Data.borHolRadius,
           dBor = .Testing.BorefieldComparisonTests.Data.burDep,
@@ -40,7 +40,7 @@ within Testing.BorefieldComparisonTests.Examples;
       nCel = 5,
       TExt0_start = .Testing.BorefieldComparisonTests.Data.TGround,
       energyDynamics = .Modelica.Fluid.Types.Dynamics.FixedInitial)
-      "Zoned BTES model with one representative borehole per physical borehole"
+      "Zoned BTES model with one equivalent borehole per row"
       annotation (Placement(transformation(extent={{20,-20},{60,20}})));
 
   equation
@@ -51,6 +51,7 @@ within Testing.BorefieldComparisonTests.Examples;
       connect(borFie.port_b[i], senTOut[i].port_a)
         annotation (Line(points={{60,0},{68,0}}, color={0,127,255}));
     end for;
+
 
     annotation (
       Diagram(coordinateSystem(extent={{-120,-100},{120,100}})),
@@ -63,14 +64,13 @@ within Testing.BorefieldComparisonTests.Examples;
       Documentation(info = "
       <html>
       <p>
-      This case uses thirty zones, one per physical borehole.
+      This case uses <code>Buildings.Fluid.Geothermal.ZonedBorefields.OneUTube</code>
+      with three zones. Each zone represents one row of ten boreholes.
       </p>
       <p>
-      It is the highest-fidelity model in this comparison set. It can represent
-      edge, corner and center-borehole differences much better than the 3-zone
-      and 9-zone models, but the response-factor matrix is much larger and
-      compilation/runtime cost can increase substantially.
+      This captures row-level differences, such as middle-row versus edge-row
+      response, but still averages the ten boreholes inside each row.
       </p>
       </html>"));
 
-  end BTES_30Zones_OnePerBorehole;
+  end BTES_3Zones_Rows_3x10;

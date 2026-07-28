@@ -1,11 +1,19 @@
 within Testing.BorefieldComparisonTests.Examples;
-model BTES_5Zones_3x10
-  "Zoned BTES model with 5 zones for 3 x 10 borefield"
+model BTES_3Zones_Rows_3x10_UnequalFlow
+  "Zoned BTES model with 3 row zones and unequal mass-flow distribution"
 
   extends Modelica.Icons.Example;
+
   extends Testing.BorefieldComparisonTests.BaseClasses.PartialZonedBTES(
-    nZon = 5,
-    nBorPerZon = Testing.BorefieldComparisonTests.Data.nBorPerZone_5);
+    nZon = 3,
+    nBorPerZon = Testing.BorefieldComparisonTests.Data.nBorPerZone_3,
+    mZon_flow_nominal = {
+      1.2*Testing.BorefieldComparisonTests.Data.nBorPerZone_3[1]
+        *Testing.BorefieldComparisonTests.Data.mBor_flow_nominal,
+      1.0*Testing.BorefieldComparisonTests.Data.nBorPerZone_3[2]
+        *Testing.BorefieldComparisonTests.Data.mBor_flow_nominal,
+      0.8*Testing.BorefieldComparisonTests.Data.nBorPerZone_3[3]
+        *Testing.BorefieldComparisonTests.Data.mBor_flow_nominal});
 
   Buildings.Fluid.Geothermal.ZonedBorefields.OneUTube borFie(
     redeclare package Medium = Testing.BorefieldComparisonTests.Medium,
@@ -21,10 +29,13 @@ model BTES_5Zones_3x10
       conDat(
         borCon = Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube,
         use_Rb = false,
-        nZon = 5,
-        iZon = Testing.BorefieldComparisonTests.Data.fiveZone,
-        mBor_flow_nominal = fill(Testing.BorefieldComparisonTests.Data.mBor_flow_nominal, 5),
-        dp_nominal = fill(Testing.BorefieldComparisonTests.Data.dpZon_nominal, 5),
+        nZon = 3,
+        iZon = Testing.BorefieldComparisonTests.Data.rowZone,
+        mBor_flow_nominal = {
+          1.2*Testing.BorefieldComparisonTests.Data.mBor_flow_nominal,
+          1.0*Testing.BorefieldComparisonTests.Data.mBor_flow_nominal,
+          0.8*Testing.BorefieldComparisonTests.Data.mBor_flow_nominal},
+        dp_nominal = fill(Testing.BorefieldComparisonTests.Data.dpZon_nominal, 3),
         hBor = Testing.BorefieldComparisonTests.Data.borHolDepth,
         rBor = Testing.BorefieldComparisonTests.Data.borHolRadius,
         dBor = Testing.BorefieldComparisonTests.Data.burDep,
@@ -38,7 +49,7 @@ model BTES_5Zones_3x10
     nCel = 5,
     TExt0_start = Testing.BorefieldComparisonTests.Data.TGround,
     energyDynamics = Modelica.Fluid.Types.Dynamics.FixedInitial)
-    "Zoned BTES model with five representative zones"
+    "Zoned BTES model with unequal row mass-flow distribution"
     annotation (Placement(transformation(extent={{20,-20},{60,20}})));
 
 equation
@@ -61,22 +72,41 @@ equation
     Documentation(info="
 <html>
 <p>
-This test model uses a 3 x 10 borefield with five thermal/hydraulic zones.
-It is intended as an intermediate compilation stress test between the low-zone
-and high-zone BTES cases.
+This model is based on the three-row zoned BTES comparison case, but applies an
+unequal mass-flow distribution over the three row zones.
 </p>
 
 <p>
-The zone grouping is:
+The nominal equal-flow case has 10 boreholes per zone and a nominal per-borehole
+mass flow rate of <code>Data.mBor_flow_nominal</code>. This gives the same mass
+flow in each row zone.
+</p>
+
+<p>
+In this model, the zone flow distribution is modified as follows:
 </p>
 
 <ul>
-<li>zone 1: first row, first six boreholes,</li>
-<li>zone 2: first row, last four boreholes,</li>
-<li>zone 3: full middle row,</li>
-<li>zone 4: last row, first four boreholes,</li>
-<li>zone 5: last row, last six boreholes.</li>
+<li>zone 1: +20 percent relative to equal distribution,</li>
+<li>zone 2: nominal equal-distribution flow,</li>
+<li>zone 3: -20 percent relative to equal distribution.</li>
 </ul>
+
+<p>
+For the default data this gives:
+</p>
+
+<ul>
+<li>zone 1: 3.0 kg/s,</li>
+<li>zone 2: 2.5 kg/s,</li>
+<li>zone 3: 2.0 kg/s.</li>
+</ul>
+
+<p>
+The total field mass flow remains equal to the original total mass flow. This
+makes the model suitable for comparing the effect of unequal row flow
+distribution against the equal-flow three-zone reference case.
+</p>
 </html>"));
 
-end BTES_5Zones_3x10;
+end BTES_3Zones_Rows_3x10_UnequalFlow;
