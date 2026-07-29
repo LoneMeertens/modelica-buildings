@@ -29,30 +29,31 @@ within Testing.BorefieldComparisonTests.BaseClasses;
       each T = (TInMin + TInMax)/2,
       each nPorts = 1)
       "One mass-flow source per zone with prescribed annual inlet temperature"
-      annotation (Placement(transformation(extent={{-110,-10},{-90,10}})));
+      annotation (Placement(transformation(extent={{-170,-10},{-150,10}})));
 
     .Buildings.Fluid.Sources.Boundary_pT sin[nZon](
       redeclare package Medium = .Testing.BorefieldComparisonTests.Medium,
       each nPorts = 1)
       "One pressure boundary per zone"
-      annotation (Placement(transformation(extent={{112,-10},{92,10}})));
+      annotation (Placement(transformation(extent={{170,-10},{150,10}})));
+
+    .Modelica.Fluid.Sensors.MassFlowRate senMasFlo[nZon](
+      redeclare package Medium = .Testing.BorefieldComparisonTests.Medium)
+      "Zone mass-flow sensors"
+      annotation (Placement(transformation(extent={{-125,-10},{-105,10}})));
 
     .Modelica.Fluid.Sensors.TemperatureTwoPort senTIn[nZon](
       redeclare package Medium = .Testing.BorefieldComparisonTests.Medium,
       m_flow_nominal = mZon_flow_nominal)
       "Zone inlet temperature sensors"
-      annotation (Placement(transformation(extent={{-8,-10},{12,10}})));
+      annotation (Placement(transformation(extent={{-85,-10},{-65,10}})));
 
     .Modelica.Fluid.Sensors.TemperatureTwoPort senTOut[nZon](
       redeclare package Medium = .Testing.BorefieldComparisonTests.Medium,
       m_flow_nominal = mZon_flow_nominal)
       "Zone outlet temperature sensors"
-      annotation (Placement(transformation(extent={{68,-10},{88,10}})));
+      annotation (Placement(transformation(extent={{110,-10},{130,10}})));
 
-    .Modelica.Fluid.Sensors.MassFlowRate senMasFlo[nZon](
-      redeclare package Medium = .Testing.BorefieldComparisonTests.Medium)
-      "Zone mass-flow sensors"
-      annotation (Placement(transformation(extent={{-42,-10},{-22,10}})));
 
     output .Modelica.Units.SI.Temperature KPI_T_in =
       sum({max(0, senMasFlo[i].m_flow)*senTIn[i].T for i in 1:nZon}) /
@@ -98,34 +99,35 @@ within Testing.BorefieldComparisonTests.BaseClasses;
       for i in 1:nZon}
       "Zone KPI: resulting heat flow from fluid to ground per zone";
 
-  equation
-    der(KPI_E) = KPI_Q_flow;
+equation
+  der(KPI_E) = KPI_Q_flow;
 
-    for i in 1:nZon loop
-      connect(TInSin.y,sou[i].T_in) 
-      annotation(Line(points = {{-69,60},{-63,60},{-63,32},{-116,32},{-116,4},{-112,4}},color = {0,0,127}));
+  for i in 1:nZon loop
+    connect(TInSin.y,sou[i].T_in) 
+      annotation(Line(points = {{-143,62},{-137,62},{-137,33},{-176,33},{-176,4},{-172,4}},color = {0,0,127}));
+    connect(sou[i].ports[1], senMasFlo[i].port_a)
+      annotation (Line(points={{-150,0},{-125,0}}, color={0,127,255}));
 
-      connect(sou[i].ports[1], senMasFlo[i].port_a)
-        annotation (Line(points={{-90,0},{-42,0}}, color={0,127,255}));
+    connect(senMasFlo[i].port_b, senTIn[i].port_a)
+      annotation (Line(points={{-105,0},{-85,0}}, color={0,127,255}));
 
-      connect(senMasFlo[i].port_b, senTIn[i].port_a)
-        annotation (Line(points={{-22,0},{-8,0}}, color={0,127,255}));
+    connect(senTOut[i].port_b, sin[i].ports[1])
+      annotation (Line(points={{130,0},{150,0}}, color={0,127,255}));
+  end for;
+    
 
-      connect(senTOut[i].port_b, sin[i].ports[1])
-        annotation (Line(points={{88,0},{92,0}}, color={0,127,255}));
-    end for;
         
 
     annotation (
-      Diagram(coordinateSystem(extent={{-120,-100},{120,100}})),
-      Icon(coordinateSystem(extent={{-120,-100},{120,100}})),
+      Diagram(coordinateSystem(extent={{-180,-100},{180,100}})),
+      Icon(coordinateSystem(extent={{-180,-100},{180,100}})),
       Documentation(info = "
       <html>
       <p>
       Base class for zoned BTES comparison cases. Each zone has its own
-      hydraulic branch, heat input, inlet sensor, outlet sensor and mass-flow
-      sensor. The derived models only need to instantiate the appropriate
-      zoned borefield component and connect its zone ports.
+      hydraulic branch, inlet sensor, outlet sensor and mass-flow sensor.
+      The central diagram region is intentionally left open for borefield
+      and horizontal runout pipe models.
       </p>
       </html>"));
 

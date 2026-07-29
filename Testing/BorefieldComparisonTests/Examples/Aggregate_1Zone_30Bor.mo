@@ -123,7 +123,9 @@ within Testing.BorefieldComparisonTests.Examples;
 
     connect(senTOut.port_b, sin.ports[1])
       annotation (Line(points={{88,0},{92,0}}, color={0,127,255}));
-        connect(TInSin.y,sou.T_in) annotation(Line(points = {{-69,60},{-63,60},{-63,32},{-116,32},{-116,4},{-112,4}},color = {0,0,127}));
+    
+    connect(TInNoisy.y,sou.T_in) 
+      annotation(Line(points = {{-69,60},{-63,60},{-63,32},{-116,32},{-116,4},{-112,4}},color = {0,0,127}));
 
     annotation (
       Diagram(coordinateSystem(extent={{-120,-100},{120,100}})),

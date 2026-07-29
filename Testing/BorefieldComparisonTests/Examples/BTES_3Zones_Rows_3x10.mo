@@ -1,6 +1,4 @@
 within Testing.BorefieldComparisonTests.Examples;
-
-
   model BTES_3Zones_Rows_3x10
     "Case 2: zoned BTES model with 3 row zones"
 
