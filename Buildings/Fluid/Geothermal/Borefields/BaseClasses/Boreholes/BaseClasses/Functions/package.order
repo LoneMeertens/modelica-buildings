@@ -1,4 +1,5 @@
 convectionResistanceCircularPipe
+fluidDensityViscosity_T
 fluidProperties_T
 internalResistancesOneUTube
 internalResistancesTwoUTube
@@ -6,5 +7,5 @@ multipoleFluidTemperature
 multipoleFmk
 multipoleThermalResistances
 partialInternalResistances
-pressureLossCircularPipe
+pressureLossPipe
 Validation

@@ -1,6 +1,6 @@
 within Buildings.Fluid.FixedResistances.Functions.Validation;
 model ChurchillFrictionFactor
-  "Validation of the Churchill (1977) friction factor function"
+  "Validation of the Churchill friction factor function"
   extends Modelica.Icons.Example;
 
   // Pipe geometry
@@ -22,13 +22,24 @@ model ChurchillFrictionFactor
   parameter Real eps_D_rough  = eps_rough  / (2*rTub_in)
     "Relative roughness rough pipe (eps/D)";
 
-  Real Re(start=1) "Reynolds number = time";
+  parameter Real Re_start(unit="1") = 100
+  "Start value for Reynolds number";
+  parameter Real Re_end(unit="1") = 30000
+    "End value for Reynolds number";
+  parameter Modelica.Units.SI.Time tEnd = 30
+    "Time used to sweep the Reynolds number";
+  parameter Real k(unit="1/s") = (Re_end - Re_start)/tEnd
+    "Conversion factor from time to Reynolds number";
+
+  Real Re(unit="1")
+    "Reynolds number";
+
   Real f_smooth "Churchill friction factor — smooth HDPE pipe";
   Real f_rough  "Churchill friction factor — commercial steel pipe";
   Real f_lam    "Laminar reference: 64/Re";
 
 equation
-  Re = time+1e-6;
+  Re = Re_start + k*time;
 
   f_smooth = Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactor(
     Re=Re,
@@ -41,7 +52,7 @@ equation
   f_lam = 64/Re;
 
   annotation (
-    experiment(Tolerance=1e-6, StopTime=30000.0),
+    experiment(Tolerance=1e-6, StopTime=30),
     __Dymola_Commands(file=
       "modelica://Buildings/Resources/Scripts/Dymola/Fluid/FixedResistances/Functions/Validation/ChurchillFrictionFactor.mos"
       "Simulate and plot"),
@@ -52,26 +63,29 @@ This example validates the implementation of
 Buildings.Fluid.FixedResistances.Functions.churchillFrictionFactor</a>.
 </p>
 <p>
-The Reynolds number increases with time so that <i>Re = t + 10<sup>-6</sup></i>,
-which avoids evaluating the raw Darcy friction factor at <i>Re</i> = 0,
-sweeping the full laminar–transitional–turbulent range
-over the simulation interval 0–30 000 s.
+The Reynolds number is prescribed as a dimensionless ramp from
+<i>100</i> to <i>30000</i> using an explicit conversion factor from
+simulation time. This sweeps the laminar, transitional, and turbulent
+range while avoiding the singularity of the raw Darcy friction factor at
+<i>Re = 0</i>.
+</p>
+<p>
 Two cases are compared using the same pipe geometry
-(<i>r<sub>tub</sub></i> = 0.02 m, <i>e<sub>tub</sub></i> = 0.002 m,
-<i>D<sub>in</sub></i> = 0.036 m):
+(<i>r<sub>tub</sub> = 0.02</i> m, <i>e<sub>tub</sub> = 0.002</i> m,
+<i>D<sub>in</sub> = 0.036</i> m):
 </p>
 <ul>
 <li>
-Smooth HDPE pipe: <i>&epsilon;</i> = 0.001 mm
+Smooth HDPE pipe: <i>&epsilon; = 0.001</i> mm
 (&epsilon;/D = 2.78 &times; 10<sup>-5</sup>).
 </li>
 <li>
-Commercial steel pipe: <i>&epsilon;</i> = 0.046 mm
+Commercial steel pipe: <i>&epsilon; = 0.046</i> mm
 (&epsilon;/D = 1.28 &times; 10<sup>-3</sup>).
 </li>
 </ul>
 <p>
-The laminar reference <i>f = 64/Re</i> is also output for comparison.
+The laminar reference <i>f = 64/Re</i> is also computed for comparison.
 </p>
 </html>", revisions="<html>
 <ul>

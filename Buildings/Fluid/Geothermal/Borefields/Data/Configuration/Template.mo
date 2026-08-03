@@ -22,7 +22,7 @@ record Template
     annotation (Dialog(group="Nominal condition"));
   parameter Boolean use_DarcyPressureDrop = false
     "Set to true to compute the vertical pipe pressure drop from Darcy-Weisbach"
-    annotation (Dialog(tab="Advanced", group="Pressure drop"));
+    annotation (Evaluate=true, Dialog(tab="Advanced", group="Pressure drop"));
   parameter Boolean use_TDepPressureDrop = false
     "Set to true to evaluate density and viscosity from the medium temperature for the Darcy-Weisbach pressure drop"
     annotation (Dialog(tab="Advanced", group="Pressure drop",enable=use_DarcyPressureDrop));
@@ -31,13 +31,13 @@ record Template
     annotation (Dialog(tab="Advanced", group="Heat transfer"));
   parameter Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation
     fluidPropertyEvaluation=
-      Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation.GenericMedium
+      Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation.use_MediaFunctions
     "Method used to evaluate fluid properties for temperature-dependent heat-transfer and pressure-drop correlations"
     annotation (Dialog(
       tab="Advanced",
       group="Fluid properties",
       enable=use_TDepRConv or use_TDepPressureDrop));
-  parameter Modelica.Units.SI.MassFraction X_a(min=0, max=0.6) = 0.25
+  parameter Modelica.Units.SI.MassFraction X_a(min=0, max=0.6) 
     "Mass fraction of propylene glycol in water, used if fluidPropertyEvaluation is PropyleneGlycolWater"
     annotation (Dialog(
       tab="Advanced",
@@ -78,7 +78,7 @@ record Template
     "Shank spacing, defined as the distance between the center of a pipe and the center of the borehole"
     annotation (Dialog(group="Tubes"));
   parameter Modelica.Units.SI.Length roughness = 0.001e-3
-    "Absolute roughness of the vertical GHE pipes"
+    "Absolute pipe wall roughness, default for smooth HDPE pipe"
     annotation (Dialog(group="Tubes"));
 
   //------------------------- Advanced parameters ------------------------------

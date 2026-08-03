@@ -23,7 +23,85 @@ model InternalHEXOneUTube
       final prescribedHeatFlowRate=false,
       final m_flow_small=m2_flow_small,
       final V=VTubSeg,
-      final mSenFac=mSenFac));
+      final mSenFac=mSenFac),
+    redeclare final Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropPipe preDro1(
+      final use_DarcyPressureDrop=borFieDat.conDat.use_DarcyPressureDrop,
+      final use_TDepPressureDrop=borFieDat.conDat.use_TDepPressureDrop,
+      final fluidPropertyEvaluation=borFieDat.conDat.fluidPropertyEvaluation,
+      final X_a=borFieDat.conDat.X_a,
+      final length=hSeg,
+      final rTub=borFieDat.conDat.rTub,
+      final eTub=borFieDat.conDat.eTub,
+      final roughness=borFieDat.conDat.roughness,
+      final nUBend=nUBend1,
+      final from_dp=from_dp1,
+      final linearized=linearizeFlowResistance1,
+      final n=n1,
+      final deltaM=deltaM1,
+      final dp_nominal=dp1_nominal),
+    redeclare final Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.PressureDropPipe preDro2(
+      final use_DarcyPressureDrop=borFieDat.conDat.use_DarcyPressureDrop,
+      final use_TDepPressureDrop=borFieDat.conDat.use_TDepPressureDrop,
+      final fluidPropertyEvaluation=borFieDat.conDat.fluidPropertyEvaluation,
+      final X_a=borFieDat.conDat.X_a,
+      final length=hSeg,
+      final rTub=borFieDat.conDat.rTub,
+      final eTub=borFieDat.conDat.eTub,
+      final roughness=borFieDat.conDat.roughness,
+      final nUBend=nUBend2,
+      final from_dp=from_dp2,
+      final linearized=linearizeFlowResistance2,
+      final n=n2,
+      final deltaM=deltaM2,
+      final dp_nominal=dp2_nominal));
+  
+  parameter Integer nUBend1(min=0) = 0
+    "Number of U-bends represented by pressure-drop model for pipe 1";
+
+  parameter Integer nUBend2(min=0) = 0
+    "Number of U-bends represented by pressure-drop model for pipe 2";
+
+  Modelica.Units.SI.ThermalResistance RVol1_val
+    "Convective and thermal resistance at fluid 1";
+
+  Modelica.Units.SI.ThermalResistance RVol2_val
+    "Convective and thermal resistance at fluid 2";
+
+  Real Re1(unit="1")
+    "Reynolds number in pipe 1";
+
+  Real Re2(unit="1")
+    "Reynolds number in pipe 2";
+
+  Modelica.Blocks.Sources.RealExpression RVol1(y=RVol1_val)
+    "Convective and thermal resistance at fluid 1"
+    annotation (Placement(transformation(extent={{-100,-2},{-80,18}})));
+
+  Modelica.Blocks.Sources.RealExpression RVol2(y=RVol2_val)
+    "Convective and thermal resistance at fluid 2"
+    annotation (Placement(transformation(extent={{-100,-18},{-80,2}})));
+
+  Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalResistancesOneUTube
+    intResUTub(
+      hSeg=hSeg,
+      energyDynamics=energyDynamics,
+      Rgb_val=Rgb_val,
+      Rgg_val=Rgg_val,
+      RCondGro_val=RCondGro_val,
+      borFieDat=borFieDat,
+      T_start=TGro_start)
+    "Internal resistances for a single U-tube configuration"
+    annotation (Placement(transformation(extent={{-10,-10},{10,10}})));
+  Modelica.Thermal.HeatTransfer.Components.ConvectiveResistor RConv2
+    "Pipe convective resistance"
+    annotation (Placement(transformation(extent={{-12,12},{12,-12}},
+        rotation=270,
+        origin={0,-28})));
+  Modelica.Thermal.HeatTransfer.Components.ConvectiveResistor RConv1
+    "Pipe convective resistance"
+    annotation (Placement(transformation(extent={{-12,-12},{12,12}},
+        rotation=90,
+        origin={0,28})));
 
 protected
   parameter Real Rgg_val(fixed=false)
@@ -57,55 +135,6 @@ protected
   Modelica.Units.SI.Density rhoMed2Act
     "Density used for correlations in volume 2";
 
-public
-  Modelica.Blocks.Sources.RealExpression RVol1(y=
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipe(
-      hSeg=hSeg,
-      rTub=borFieDat.conDat.rTub,
-      eTub=borFieDat.conDat.eTub,
-      roughness=borFieDat.conDat.roughness,
-      kMed=kMed1Act,
-      muMed=muMed1Act,
-      cpMed=cpMed1Act,
-      m_flow=m1_flow,
-      m_flow_nominal=m1_flow_nominal))
-    "Convective and thermal resistance at fluid 1"
-    annotation (Placement(transformation(extent={{-100,-2},{-80,18}})));
-  Modelica.Blocks.Sources.RealExpression RVol2(y=
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipe(
-      hSeg=hSeg,
-      rTub=borFieDat.conDat.rTub,
-      eTub=borFieDat.conDat.eTub,
-      roughness=borFieDat.conDat.roughness,
-      kMed=kMed2Act,
-      muMed=muMed2Act,
-      cpMed=cpMed2Act,
-      m_flow=m2_flow,
-      m_flow_nominal=m2_flow_nominal))
-    "Convective and thermal resistance at fluid 2"
-    annotation (Placement(transformation(extent={{-100,-18},{-80,2}})));
-
-  Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalResistancesOneUTube
-    intResUTub(
-      hSeg=hSeg,
-      energyDynamics=energyDynamics,
-      Rgb_val=Rgb_val,
-      Rgg_val=Rgg_val,
-      RCondGro_val=RCondGro_val,
-      borFieDat=borFieDat,
-      T_start=TGro_start)
-    "Internal resistances for a single U-tube configuration"
-    annotation (Placement(transformation(extent={{-10,-10},{10,10}})));
-  Modelica.Thermal.HeatTransfer.Components.ConvectiveResistor RConv2
-    "Pipe convective resistance"
-    annotation (Placement(transformation(extent={{-12,12},{12,-12}},
-        rotation=270,
-        origin={0,-28})));
-  Modelica.Thermal.HeatTransfer.Components.ConvectiveResistor RConv1
-    "Pipe convective resistance"
-    annotation (Placement(transformation(extent={{-12,-12},{12,12}},
-        rotation=90,
-        origin={0,28})));
 initial equation
   (x, Rgb_val, Rgg_val, RCondGro_val) =
     Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.internalResistancesOneUTube(
@@ -119,38 +148,38 @@ initial equation
       kTub=borFieDat.conDat.kTub,
       use_Rb=borFieDat.conDat.use_Rb,
       Rb=borFieDat.conDat.Rb,
-      kMed=kMed,
-      muMed=muMed,
-      cpMed=cpMed,
+      kMed=kMed_default,
+      muMed=muMed_default,
+      cpMed=cpMed_default,
       m_flow_nominal=m1_flow_nominal,
       instanceName=getInstanceName());
 
 equation
-  X1 =
-    if Medium.reducedX then
-      cat(1, vol1.Xi, {1 - sum(vol1.Xi)})
-    else
-      vol1.Xi;
-
-  X2 =
-    if Medium.reducedX then
-      cat(1, vol2.Xi, {1 - sum(vol2.Xi)})
-    else
-      vol2.Xi;
-
-  sta1 = Medium.setState_pTX(
-    p=vol1.p,
-    T=vol1.T,
-    X=X1);
-
-  sta2 = Medium.setState_pTX(
-    p=vol2.p,
-    T=vol2.T,
-    X=X2);
-
   if borFieDat.conDat.use_TDepRConv and
-     borFieDat.conDat.fluidPropertyEvaluation ==
-       Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation.GenericMedium then
+    borFieDat.conDat.fluidPropertyEvaluation ==
+      Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation.use_MediaFunctions then
+
+    X1 =
+      if Medium.reducedX then
+        cat(1, vol1.Xi, {1 - sum(vol1.Xi)})
+      else
+        vol1.Xi;
+
+    X2 =
+      if Medium.reducedX then
+        cat(1, vol2.Xi, {1 - sum(vol2.Xi)})
+      else
+        vol2.Xi;
+
+    sta1 = Medium.setState_pTX(
+      p=vol1.p,
+      T=vol1.T,
+      X=X1);
+
+    sta2 = Medium.setState_pTX(
+      p=vol2.p,
+      T=vol2.T,
+      X=X2);
 
     cpMed1Act = Medium.specificHeatCapacityCp(sta1);
     kMed1Act = Medium.thermalConductivity(sta1);
@@ -162,33 +191,85 @@ equation
     muMed2Act = Medium.dynamicViscosity(sta2);
     rhoMed2Act = Medium.density(sta2);
 
-  else
+  elseif borFieDat.conDat.use_TDepRConv then
+
+    X1 = zeros(Medium.nX);
+    X2 = zeros(Medium.nX);
+
+    sta1 = Medium.setState_pTX(
+      p=Medium.p_default,
+      T=Medium.T_default,
+      X=Medium.X_default);
+
+    sta2 = Medium.setState_pTX(
+      p=Medium.p_default,
+      T=Medium.T_default,
+      X=Medium.X_default);
 
     (cpMed1Act, kMed1Act, muMed1Act, rhoMed1Act) =
       Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.fluidProperties_T(
-        use_TDep=borFieDat.conDat.use_TDepRConv,
         fluidPropertyEvaluation=borFieDat.conDat.fluidPropertyEvaluation,
         T=vol1.T,
         p=vol1.p,
-        X_a=borFieDat.conDat.X_a,
-        cp_default=cpMed,
-        k_default=kMed,
-        mu_default=muMed,
-        rho_default=rhoMed);
+        X_a=borFieDat.conDat.X_a);
 
     (cpMed2Act, kMed2Act, muMed2Act, rhoMed2Act) =
       Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.fluidProperties_T(
-        use_TDep=borFieDat.conDat.use_TDepRConv,
         fluidPropertyEvaluation=borFieDat.conDat.fluidPropertyEvaluation,
         T=vol2.T,
         p=vol2.p,
-        X_a=borFieDat.conDat.X_a,
-        cp_default=cpMed,
-        k_default=kMed,
-        mu_default=muMed,
-        rho_default=rhoMed);
+        X_a=borFieDat.conDat.X_a);
+
+  else
+
+    X1 = zeros(Medium.nX);
+    X2 = zeros(Medium.nX);
+
+    sta1 = Medium.setState_pTX(
+      p=Medium.p_default,
+      T=Medium.T_default,
+      X=Medium.X_default);
+
+    sta2 = Medium.setState_pTX(
+      p=Medium.p_default,
+      T=Medium.T_default,
+      X=Medium.X_default);
+
+    cpMed1Act = cpMed_default;
+    kMed1Act = kMed_default;
+    muMed1Act = muMed_default;
+    rhoMed1Act = rhoMed_default;
+
+    cpMed2Act = cpMed_default;
+    kMed2Act = kMed_default;
+    muMed2Act = muMed_default;
+    rhoMed2Act = rhoMed_default;
 
   end if;
+
+  (RVol1_val, Re1) =
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipe(
+      hSeg=hSeg,
+      rTub=borFieDat.conDat.rTub,
+      eTub=borFieDat.conDat.eTub,
+      roughness=borFieDat.conDat.roughness,
+      kMed=kMed1Act,
+      muMed=muMed1Act,
+      cpMed=cpMed1Act,
+      m_flow=m1_flow,
+      m_flow_nominal=m1_flow_nominal);
+
+  (RVol2_val, Re2) =
+    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.convectionResistanceCircularPipe(
+      hSeg=hSeg,
+      rTub=borFieDat.conDat.rTub,
+      eTub=borFieDat.conDat.eTub,
+      roughness=borFieDat.conDat.roughness,
+      kMed=kMed2Act,
+      muMed=muMed2Act,
+      cpMed=cpMed2Act,
+      m_flow=m2_flow,
+      m_flow_nominal=m2_flow_nominal);
 
     assert(borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.SingleUTube,
   "This model should be used for single U-type borefield, not double U-type.
@@ -208,9 +289,9 @@ equation
           -12},{16,-12},{16,0},{10,0}}, color={191,0,0}));
   connect(intResUTub.port_wall, port_wall) annotation (Line(points={{0,0},{0,0},
           {0,6},{-28,6},{-28,86},{0,86},{0,100}},             color={191,0,0}));
-    annotation (Dialog(tab="Dynamics"),
-    Icon(coordinateSystem(preserveAspectRatio=false, initialScale=0.1),
-                    graphics={Rectangle(
+    annotation (
+    Icon(coordinateSystem(preserveAspectRatio=false),
+    graphics={Rectangle(
           extent={{88,54},{-88,64}},
           lineColor={0,0,255},
           pattern=LinePattern.None,
@@ -269,6 +350,12 @@ This is for
 <a href=\"https://github.com/lbl-srg/modelica-buildings/issues/4656\">Buildings, #4656</a>.
 </li>
 <li>
+June 17, 2026, by Michael Wetter:<br/>
+Removed stray annotation.<br/>
+This is for
+<a href=\"https://github.com/ibpsa/modelica-ibpsa/issues/2139\">IBPSA, #2139</a>.
+</li>
+<li>
 May 17, 2024, by Michael Wetter:<br/>
 Updated model due to removal of parameter <code>dynFil</code>.<br/>
 This is for
@@ -320,7 +407,5 @@ January 23, 2014, by Damien Picard:<br/>
 First implementation.
 </li>
 </ul>
-</html>"),
-    Diagram(coordinateSystem(preserveAspectRatio=false, initialScale=0.1),
-    graphics));
+</html>"));
 end InternalHEXOneUTube;

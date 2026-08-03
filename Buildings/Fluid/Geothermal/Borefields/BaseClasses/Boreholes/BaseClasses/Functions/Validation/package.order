@@ -1,4 +1,5 @@
 ConvectionResistanceCircularPipe
+FluidDensityViscosity_T
 FluidProperties_T
 InternalResistancesOneUTube
 InternalResistancesOneUTubeNegative
@@ -6,4 +7,4 @@ InternalResistancesTwoUTube
 InternalResistancesTwoUTubeNegative
 MultipoleThermalResistances_OneUTube
 MultipoleThermalResistances_TwoUTube
-PressureLossCircularPipe
+PressureLossPipe
