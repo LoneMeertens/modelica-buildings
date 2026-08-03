@@ -40,17 +40,15 @@ within Testing.BorefieldComparisonTests.Examples;
       energyDynamics = .Modelica.Fluid.Types.Dynamics.FixedInitial)
       "Zoned BTES model with one equivalent borehole per row"
       annotation (Placement(transformation(extent={{20,-20},{60,20}})));
+equation
+  for i in 1:nZon loop
+    connect(senTIn[i].port_b, borFie.port_a[i])
+        annotation (Line(points={{-65,0},{20,0}}, color={0,127,255}));
 
-  equation
-    for i in 1:nZon loop
-      connect(senTIn[i].port_b, borFie.port_a[i])
-        annotation (Line(points={{12,0},{20,0}}, color={0,127,255}));
-
-      connect(borFie.port_b[i], senTOut[i].port_a)
-        annotation (Line(points={{60,0},{68,0}}, color={0,127,255}));
-    end for;
-
-
+    connect(borFie.port_b[i], senTOut[i].port_a)
+        annotation (Line(points={{60,0},{110,0}}, color={0,127,255}));
+  end for;
+  
     annotation (
       Diagram(coordinateSystem(extent={{-120,-100},{120,100}})),
       Icon(coordinateSystem(extent={{-120,-100},{120,100}})),

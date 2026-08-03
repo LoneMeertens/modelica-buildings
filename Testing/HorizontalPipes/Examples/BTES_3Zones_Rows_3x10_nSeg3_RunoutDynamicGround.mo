@@ -63,7 +63,7 @@ model BTES_3Zones_Rows_3x10_nSeg3_RunoutDynamicGround
       each computePressureDrop = true,
       each use_TDepPressureDrop = true)
     "Supply-side dynamic-ground horizontal runout pipes"
-    annotation (Placement(transformation(extent={{-60,-15},{-30,15}})));
+    annotation (Placement(transformation(extent={{-60.0,-15.0},{-30.0,15.0}},rotation = 0.0,origin = {0.0,0.0})));
 
   .Testing.HorizontalPipes.BaseClasses.DynamicGroundRunoutPipe
     runoutRet[nZon](

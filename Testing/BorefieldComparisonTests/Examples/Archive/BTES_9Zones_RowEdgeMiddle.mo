@@ -46,10 +46,10 @@ within Testing.BorefieldComparisonTests.Examples.Archive;
   equation
     for i in 1:nZon loop
       connect(senTIn[i].port_b, borFie.port_a[i])
-        annotation (Line(points={{12,0},{20,0}}, color={0,127,255}));
+        annotation (Line(points={{-65,0},{20,0}}, color={0,127,255}));
 
       connect(borFie.port_b[i], senTOut[i].port_a)
-        annotation (Line(points={{60,0},{68,0}}, color={0,127,255}));
+        annotation (Line(points={{60,0},{110,0}}, color={0,127,255}));
     end for;
 
 
