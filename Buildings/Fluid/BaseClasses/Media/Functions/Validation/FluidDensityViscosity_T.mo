@@ -1,33 +1,33 @@
-within Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.Validation;
+within Buildings.Fluid.BaseClasses.Media.Functions.Validation;
 model FluidDensityViscosity_T
   "Validation model for fluidDensityViscosity_T"
-  extends Modelica.Icons.Example;
+  extends .Modelica.Icons.Example;
 
-  Modelica.Units.SI.Temperature T
+  .Modelica.Units.SI.Temperature T
     "Temperature sweep";
 
-  Modelica.Units.SI.AbsolutePressure p=300000
+  .Modelica.Units.SI.AbsolutePressure p=300000
     "Pressure";
 
   constant Real X_aGly(unit="1", min=0, max=0.6) = 0.40
     "Mass fraction of propylene glycol in water";
 
-  Modelica.Units.SI.DynamicViscosity muFix
+  .Modelica.Units.SI.DynamicViscosity muFix
     "Constant reference dynamic viscosity";
 
-  Modelica.Units.SI.Density rhoFix
+  .Modelica.Units.SI.Density rhoFix
     "Constant reference density";
 
-  Modelica.Units.SI.DynamicViscosity muWat
+  .Modelica.Units.SI.DynamicViscosity muWat
     "Temperature-dependent water dynamic viscosity";
 
-  Modelica.Units.SI.Density rhoWat
+  .Modelica.Units.SI.Density rhoWat
     "Temperature-dependent water density";
 
-  Modelica.Units.SI.DynamicViscosity muGly
+  .Modelica.Units.SI.DynamicViscosity muGly
     "Temperature-dependent glycol dynamic viscosity";
 
-  Modelica.Units.SI.Density rhoGly
+  .Modelica.Units.SI.Density rhoGly
     "Temperature-dependent glycol density";
 
 equation
@@ -37,17 +37,17 @@ equation
   rhoFix = 995.586;
 
   (muWat, rhoWat) =
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.fluidDensityViscosity_T(
+    .Buildings.Fluid.BaseClasses.Media.Functions.fluidDensityViscosity_T(
       fluidPropertyEvaluation=
-        Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation.Water,
+        .Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation.Water,
       T=T,
       p=p,
       X_a=X_aGly);
 
   (muGly, rhoGly) =
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.fluidDensityViscosity_T(
+    .Buildings.Fluid.BaseClasses.Media.Functions.fluidDensityViscosity_T(
       fluidPropertyEvaluation=
-        Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation.PropyleneGlycolWater,
+        .Buildings.Fluid.Geothermal.Borefields.Types.FluidPropertyEvaluation.PropyleneGlycolWater,
       T=T,
       p=p,
       X_a=X_aGly);
@@ -55,13 +55,13 @@ equation
   annotation (
     experiment(StopTime=3600, Tolerance=1e-6),
     __Dymola_Commands(file=
-        "modelica://Buildings/Resources/Scripts/Dymola/Fluid/Geothermal/Borefields/BaseClasses/Boreholes/BaseClasses/Functions/Validation/FluidDensityViscosity_T.mos"
+        "modelica://Buildings/Resources/Scripts/Dymola/Fluid/BaseClasses/Media/Functions/Validation/fluidDensityViscosity_T.mos"
         "Simulate and plot"),
     Documentation(info="<html>
 <p>
 This validation model tests
-<a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.fluidDensityViscosity_T\">
-Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.fluidDensityViscosity_T</a>.
+<a href=\"modelica://Buildings.Fluid.BaseClasses.Media.Functions.fluidDensityViscosity_T\">
+Buildings.Fluid.BaseClasses.Media.Functions.fluidDensityViscosity_T</a>.
 </p>
 <p>
 The model compares constant reference density and dynamic viscosity with
