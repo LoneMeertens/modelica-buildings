@@ -1,41 +1,41 @@
-within Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.Validation;
+within Buildings.Fluid.FixedResistances.Functions.Validation;
 model PressureLossPipe
   "Validation model for pressureLossCircularPipe"
-  extends Modelica.Icons.Example;
+  extends .Modelica.Icons.Example;
 
-  parameter Modelica.Units.SI.Length hSeg = 100
+  parameter .Modelica.Units.SI.Length hSeg = 100
     "Length of the pipe";
-  parameter Modelica.Units.SI.Radius rTub = 0.02
+  parameter .Modelica.Units.SI.Radius rTub = 0.02
     "Outer tube radius";
-  parameter Modelica.Units.SI.Length eTub = 0.002
+  parameter .Modelica.Units.SI.Length eTub = 0.002
     "Tube wall thickness";
-  parameter Modelica.Units.SI.Length roughness = 0.001e-3
+  parameter .Modelica.Units.SI.Length roughness = 0.001e-3
     "Absolute pipe wall roughness";
-  parameter Modelica.Units.SI.Density rhoMed = 1000
+  parameter .Modelica.Units.SI.Density rhoMed = 1000
     "Density of the fluid";
-  parameter Modelica.Units.SI.DynamicViscosity muMed = 1E-3
+  parameter .Modelica.Units.SI.DynamicViscosity muMed = 1E-3
     "Dynamic viscosity of the fluid";
-  final parameter Modelica.Units.SI.Radius rTub_in = rTub - eTub
+  final parameter .Modelica.Units.SI.Radius rTub_in = rTub - eTub
     "Inner tube radius";
-  final parameter Modelica.Units.SI.Diameter diameter = 2*rTub_in
+  final parameter .Modelica.Units.SI.Diameter diameter = 2*rTub_in
     "Inner tube diameter";
-  final parameter Modelica.Units.SI.Area crossArea =
-    Modelica.Constants.pi*rTub_in^2
+  final parameter .Modelica.Units.SI.Area crossArea =
+    .Modelica.Constants.pi*rTub_in^2
     "Inner cross-sectional area";
   parameter Real kMinor(unit="1", min=0) = 2
     "Total minor-loss coefficient";
 
-  Modelica.Units.SI.ReynoldsNumber Re
+  .Modelica.Units.SI.ReynoldsNumber Re
     "Reynolds number";
-  Modelica.Units.SI.MassFlowRate m_flow
+  .Modelica.Units.SI.MassFlowRate m_flow
     "Mass flow rate";
-  Modelica.Units.SI.PressureDifference dp
+  .Modelica.Units.SI.PressureDifference dp
     "Pressure drop";
-  Modelica.Units.SI.PressureDifference dp_lam
+  .Modelica.Units.SI.PressureDifference dp_lam
     "Laminar pressure-drop reference";
-  Modelica.Units.SI.PressureDifference dp_noMinor
+  .Modelica.Units.SI.PressureDifference dp_noMinor
     "Pressure drop without minor losses";
-  Modelica.Units.SI.PressureDifference dp_minor
+  .Modelica.Units.SI.PressureDifference dp_minor
     "Minor-loss contribution";
 
 equation
@@ -44,7 +44,7 @@ equation
   m_flow = Re*crossArea*muMed/diameter;
 
   dp =
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossPipe(
+    .Buildings.Fluid.FixedResistances.Functions.pressureLossPipe(
       length=hSeg,
       rTub=rTub,
       eTub=eTub,
@@ -55,7 +55,7 @@ equation
       kMinor=kMinor);
 
   dp_noMinor =
-    Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossPipe(
+    .Buildings.Fluid.FixedResistances.Functions.pressureLossPipe(
       length=hSeg,
       rTub=rTub,
       eTub=eTub,
@@ -73,7 +73,7 @@ equation
 
   annotation (
     __Dymola_Commands(file=
-      "modelica://Buildings/Resources/Scripts/Dymola/Fluid/Geothermal/Borefields/BaseClasses/Boreholes/BaseClasses/Functions/Validation/PressureLossCircularPipe.mos"
+      "modelica://Buildings/Resources/Scripts/Dymola/Fluid/FixedResistances/Functions/Validation/PressureLossCircularPipe.mos"
       "Simulate and plot"),
     experiment(
       StopTime=10000.0,
@@ -81,8 +81,8 @@ equation
     Documentation(info="<html>
 <p>
 This validation model evaluates
-<a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe\">
-Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe</a>
+<a href=\"modelica://Buildings.Fluid.FixedResistances.Functions.pressureLossPipe\">
+Buildings.Fluid.FixedResistances.Functions.pressureLossPipe</a>
 for Reynolds numbers between 0 and 10000.
 </p>
 
@@ -107,8 +107,8 @@ Reynolds number.
 
 <p>
 The pressure-loss equations are documented in
-<a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe\">
-Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.Functions.pressureLossCircularPipe</a>.
+<a href=\"modelica://Buildings.Fluid.FixedResistances.Functions.pressureLossPipe\">
+Buildings.Fluid.FixedResistances.Functions.pressureLossPipe</a>.
 </p>
 </html>",
 revisions="<html>

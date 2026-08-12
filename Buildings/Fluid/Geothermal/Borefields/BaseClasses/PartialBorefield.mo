@@ -8,8 +8,9 @@ partial model PartialBorefield
   extends Buildings.Fluid.Interfaces.TwoPortFlowResistanceParameters(
     final dp_nominal=borFieDat.conDat.dp_nominal,
     final computeFlowResistance=
-      use_DarcyPressureDrop or
-      borFieDat.conDat.dp_nominal > Modelica.Constants.eps);
+      computePressureDrop and (
+        use_detailedPressureDrop or
+        borFieDat.conDat.dp_nominal > Modelica.Constants.eps));
 
   replaceable package Medium =
     Modelica.Media.Interfaces.PartialMedium
@@ -62,19 +63,70 @@ partial model PartialBorefield
     annotation (choicesAllMatching=true,Placement(transformation(extent={{-80,-80},{-60,-60}})));
 
   // Advanced parameters of borefield
-  parameter Boolean use_DarcyPressureDrop = false
-    "Set to true to compute the vertical pipe pressure drop from Darcy-Weisbach instead of using the nominal borefield pressure drop"
+  parameter Boolean computePressureDrop = true
+    "Set to true to compute pressure drop"
     annotation (
       Evaluate=true,
       Dialog(tab="Advanced", group="Pressure drop"));
-  parameter Boolean use_TDepPressureDrop = false
-    "Set to true to evaluate density and viscosity from the local medium state for the Darcy-Weisbach pressure drop"
+
+  parameter Boolean use_detailedPressureDrop = false
+    "Set to true to compute the vertical pipe pressure drop from Darcy-Weisbach instead of using the nominal borefield pressure drop"
     annotation (
       Evaluate=true,
       Dialog(
         tab="Advanced",
         group="Pressure drop",
-        enable=use_DarcyPressureDrop));
+        enable=computePressureDrop));
+
+  parameter Buildings.Fluid.Types.FluidProperties fluidProperties =
+    Buildings.Fluid.Types.FluidProperties.DefaultTemperature
+    "Fluid-property evaluation for the detailed pressure drop calculation"
+    annotation (
+      Evaluate=true,
+      Dialog(
+        tab="Advanced",
+        group="Pressure drop",
+        enable=computePressureDrop and use_detailedPressureDrop));
+
+  parameter Modelica.Units.SI.Temperature T_ref = Medium.T_default
+    "Reference temperature for fluid-property evaluation"
+    annotation (Dialog(
+      tab="Advanced",
+      group="Pressure drop",
+      enable=computePressureDrop and use_detailedPressureDrop and
+             fluidProperties == Buildings.Fluid.Types.FluidProperties.DefaultTemperature));
+  
+  parameter Modelica.Units.SI.Density rhoMed =
+    Medium.density(Medium.setState_pTX(
+      Medium.p_default,
+      T_ref,
+      Medium.X_default))
+    "User-specified density used only if fluidProperties=Constant; ensure consistency with Medium"
+    annotation (Dialog(
+      tab="Advanced",
+      group="Pressure drop",
+      enable=computePressureDrop and use_detailedPressureDrop and
+             fluidProperties == Buildings.Fluid.Types.FluidProperties.Constant));
+
+  parameter Modelica.Units.SI.DynamicViscosity muMed =
+    Medium.dynamicViscosity(Medium.setState_pTX(
+      Medium.p_default,
+      T_ref,
+      Medium.X_default))
+    "User-specified dynamic viscosity used only if fluidProperties=Constant; ensure consistency with Medium"
+    annotation (Dialog(
+      tab="Advanced",
+      group="Pressure drop",
+      enable=computePressureDrop and use_detailedPressureDrop and
+             fluidProperties == Buildings.Fluid.Types.FluidProperties.Constant));
+
+  parameter Real kUBend(unit="1", min=0) = 2
+    "Minor-loss coefficient of one U-bend"
+    annotation (Dialog(
+      tab="Advanced",
+      group="Pressure drop",
+      enable=computePressureDrop and use_detailedPressureDrop));
+
   parameter Boolean use_TDepRConv = false
     "Set to true to evaluate fluid thermal properties from the local medium state for the pipe convection resistance"
     annotation (
@@ -142,8 +194,11 @@ partial model PartialBorefield
     final mSenFac=mSenFac,
     final TFlu_start=TFlu_start,
     final TGro_start=TGro_start,
-    final use_DarcyPressureDrop=use_DarcyPressureDrop,
-    final use_TDepPressureDrop=use_TDepPressureDrop,
+    final computePressureDrop=computePressureDrop,
+    final use_detailedPressureDrop=use_detailedPressureDrop,
+    final fluidProperties=fluidProperties,
+    final T_ref=T_ref,
+    final kUBend=kUBend,
     final use_TDepRConv=use_TDepRConv) "Borehole"
     annotation (Placement(transformation(extent={{-10,-50},{10,-30}})));
 
