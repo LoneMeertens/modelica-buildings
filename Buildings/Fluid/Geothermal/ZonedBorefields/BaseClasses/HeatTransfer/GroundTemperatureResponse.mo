@@ -35,26 +35,26 @@ protected
   constant Real relTol = 0.02 "Relative tolerance on distance between boreholes";
 
 
+/*
   parameter String sha =
-    if useZeroKappa then
-      ""
-    else
-      Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.shaKappa(
-        nBor=borFieDat.conDat.nBor,
-        cooBor=borFieDat.conDat.cooBor,
-        hBor=borFieDat.conDat.hBor,
-        dBor=borFieDat.conDat.dBor,
-        rBor=borFieDat.conDat.rBor,
-        aSoi=borFieDat.soiDat.aSoi,
-        kSoi=borFieDat.soiDat.kSoi,
-        nSeg=nSeg,
-        nZon=borFieDat.conDat.nZon,
-        iZon=borFieDat.conDat.iZon,
-        nBorPerZon=borFieDat.conDat.nBorPerZon,
-        nu=nu,
-        nTim=i,
-        relTol=relTol)
+    Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.shaKappa(
+      nBor=borFieDat.conDat.nBor,
+      cooBor=borFieDat.conDat.cooBor,
+      hBor=borFieDat.conDat.hBor,
+      dBor=borFieDat.conDat.dBor,
+      rBor=borFieDat.conDat.rBor,
+      aSoi=borFieDat.soiDat.aSoi,
+      kSoi=borFieDat.soiDat.kSoi,
+      nSeg=nSeg,
+      nZon=borFieDat.conDat.nZon,
+      iZon=borFieDat.conDat.iZon,
+      nBorPerZon=borFieDat.conDat.nBorPerZon,
+      nu=nu,
+      nTim=i,
+      relTol=relTol)
     "String with encrypted thermal response factor arguments";
+*/
+
 
   final parameter Integer nSegTot = nZon * nSeg
     "Total number of segments";
@@ -77,27 +77,27 @@ protected
   final parameter Modelica.Units.SI.Time t_start(fixed=false)
     "Simulation start time";
 
+/*
   final parameter Real[nSegTot,nSegTot,i] kappa =
-    if useZeroKappa then
-      fill(0.0, nSegTot, nSegTot, i)
-    else
-      Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.temperatureResponseMatrix(
-        nBor=borFieDat.conDat.nBor,
-        cooBor=borFieDat.conDat.cooBor,
-        hBor=borFieDat.conDat.hBor,
-        dBor=borFieDat.conDat.dBor,
-        rBor=borFieDat.conDat.rBor,
-        aSoi=borFieDat.soiDat.aSoi,
-        kSoi=borFieDat.soiDat.kSoi,
-        nSeg=nSeg,
-        nZon=borFieDat.conDat.nZon,
-        iZon=borFieDat.conDat.iZon,
-        nBorPerZon=borFieDat.conDat.nBorPerZon,
-        nu=nu,
-        nTim=i,
-        relTol=relTol,
-        sha=sha)
+    Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.temperatureResponseMatrix(
+      nBor=borFieDat.conDat.nBor,
+      cooBor=borFieDat.conDat.cooBor,
+      hBor=borFieDat.conDat.hBor,
+      dBor=borFieDat.conDat.dBor,
+      rBor=borFieDat.conDat.rBor,
+      aSoi=borFieDat.soiDat.aSoi,
+      kSoi=borFieDat.soiDat.kSoi,
+      nSeg=nSeg,
+      nZon=borFieDat.conDat.nZon,
+      iZon=borFieDat.conDat.iZon,
+      nBorPerZon=borFieDat.conDat.nBorPerZon,
+      nu=nu,
+      nTim=i,
+      relTol=relTol,
+      sha=sha)
     "Weight factor for each aggregation cell";
+*/
+
 
   final parameter Real[i] rCel(each fixed=false) "Cell widths";
 
@@ -117,8 +117,8 @@ protected
     "Previous time step's temperature difference current borehole wall temperature minus initial borehole temperature";
   discrete Real[nSegTot] derDelTBor0(each unit="K/s")
     "Derivative of wall temperature change from previous time steps";
-  final parameter Real[nSegTot] dTStepdt = {kappa[i,i,1]/tLoaAgg for i in 1:nSegTot}
-    "Time derivative of h_ii/(2*pi*H*Nb*ks) within most recent cell";
+  final parameter Real[nSegTot] dTStepdt = zeros(nSegTot)
+    "Zero response test: derivative of current-cell borehole wall temperature response";
 
   Modelica.Units.SI.Heat[nSegTot,1] U "Accumulated heat flow from all segments";
   discrete Modelica.Units.SI.Heat[nSegTot,1] U_old
@@ -178,17 +178,12 @@ equation
       curTim=(time - t_start));
   end when;
   when sampleLoad then
-    // Determine the temperature change at the next aggregation step (assuming
-    // no loads until then)
-    delTBor0 = Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.temporalSuperposition(
-      i=i,
-      nSeg=nSegTot,
-      QAgg_flow=QAggShi_flow,
-      kappa=kappa,
-      curCel=curCel);
+    // Zero response test: bypass temporal and spatial superposition completely.
+    delTBor0 = zeros(nSegTot);
 
     derDelTBor0 = (delTBor0 - delTBor_1d) / tLoaAgg;
   end when;
+
 
   annotation (Icon(coordinateSystem(preserveAspectRatio=false), graphics={
         Rectangle(
