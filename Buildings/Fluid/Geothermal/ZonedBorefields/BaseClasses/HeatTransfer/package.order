@@ -3,4 +3,7 @@ shaKappa
 shiftAggregationCells
 temperatureResponseMatrix
 temporalSuperposition
+kappaGetDiag1
 Validation
+KappaExternalObject
+temporalSuperpositionExternal
