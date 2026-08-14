@@ -6,6 +6,9 @@ model GroundTemperatureResponse
   parameter Integer nCel(min=1)=5 "Number of cells per aggregation level";
   parameter Integer nSeg(min=1)
     "Number of segments per borehole";
+  parameter Boolean useZeroKappa = false
+    "Set to true to replace calculated thermal response matrix by zeros for compilation testing"
+    annotation(Evaluate=true);
   parameter Buildings.Fluid.Geothermal.ZonedBorefields.Data.Borefield.Template borFieDat
     "Record containing all the parameters of the borefield model"
     annotation(choicesAllMatching=true,
@@ -32,22 +35,26 @@ protected
   constant Real relTol = 0.02 "Relative tolerance on distance between boreholes";
 
 
-  parameter String sha=
-    Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.shaKappa(
-      nBor=borFieDat.conDat.nBor,
-      cooBor=borFieDat.conDat.cooBor,
-      hBor=borFieDat.conDat.hBor,
-      dBor=borFieDat.conDat.dBor,
-      rBor=borFieDat.conDat.rBor,
-      aSoi=borFieDat.soiDat.aSoi,
-      kSoi=borFieDat.soiDat.kSoi,
-      nSeg=nSeg,
-      nZon=borFieDat.conDat.nZon,
-      iZon=borFieDat.conDat.iZon,
-      nBorPerZon=borFieDat.conDat.nBorPerZon,
-      nu=nu,
-      nTim=i,
-      relTol=relTol) "String with encrypted thermal response factor arguments";
+  parameter String sha =
+    if useZeroKappa then
+      ""
+    else
+      Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.shaKappa(
+        nBor=borFieDat.conDat.nBor,
+        cooBor=borFieDat.conDat.cooBor,
+        hBor=borFieDat.conDat.hBor,
+        dBor=borFieDat.conDat.dBor,
+        rBor=borFieDat.conDat.rBor,
+        aSoi=borFieDat.soiDat.aSoi,
+        kSoi=borFieDat.soiDat.kSoi,
+        nSeg=nSeg,
+        nZon=borFieDat.conDat.nZon,
+        iZon=borFieDat.conDat.iZon,
+        nBorPerZon=borFieDat.conDat.nBorPerZon,
+        nu=nu,
+        nTim=i,
+        relTol=relTol)
+    "String with encrypted thermal response factor arguments";
 
   final parameter Integer nSegTot = nZon * nSeg
     "Total number of segments";
@@ -71,22 +78,26 @@ protected
     "Simulation start time";
 
   final parameter Real[nSegTot,nSegTot,i] kappa =
-    Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.temperatureResponseMatrix(
-      nBor=borFieDat.conDat.nBor,
-      cooBor=borFieDat.conDat.cooBor,
-      hBor=borFieDat.conDat.hBor,
-      dBor=borFieDat.conDat.dBor,
-      rBor=borFieDat.conDat.rBor,
-      aSoi=borFieDat.soiDat.aSoi,
-      kSoi=borFieDat.soiDat.kSoi,
-      nSeg=nSeg,
-      nZon=borFieDat.conDat.nZon,
-      iZon=borFieDat.conDat.iZon,
-      nBorPerZon=borFieDat.conDat.nBorPerZon,
-      nu=nu,
-      nTim=i,
-      relTol=relTol,
-      sha=sha) "Weight factor for each aggregation cell";
+    if useZeroKappa then
+      fill(0.0, nSegTot, nSegTot, i)
+    else
+      Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.temperatureResponseMatrix(
+        nBor=borFieDat.conDat.nBor,
+        cooBor=borFieDat.conDat.cooBor,
+        hBor=borFieDat.conDat.hBor,
+        dBor=borFieDat.conDat.dBor,
+        rBor=borFieDat.conDat.rBor,
+        aSoi=borFieDat.soiDat.aSoi,
+        kSoi=borFieDat.soiDat.kSoi,
+        nSeg=nSeg,
+        nZon=borFieDat.conDat.nZon,
+        iZon=borFieDat.conDat.iZon,
+        nBorPerZon=borFieDat.conDat.nBorPerZon,
+        nu=nu,
+        nTim=i,
+        relTol=relTol,
+        sha=sha)
+    "Weight factor for each aggregation cell";
 
   final parameter Real[i] rCel(each fixed=false) "Cell widths";
 
