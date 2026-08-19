@@ -8,8 +8,12 @@ model GroundTemperatureResponse
     "Number of cells per aggregation level";
   parameter Integer nSeg(min=1)
     "Number of segments per borehole";
+  parameter Boolean useExternalKappa = true
+    "If true, load precomputed kappa matrix from kappaFileName via external C object; if false, compute kappa symbolically in Modelica at translation time"
+    annotation(Evaluate=true);
   parameter String kappaFileName =
-    "/home/jovyan/impact/local_projects/Modelica-buildings_7/Buildings/Resources/Data/Fluid/Geothermal/ZonedBorefields/kappaFlat.txt"
+    Modelica.Utilities.Files.loadResource(
+      "modelica://Buildings/Resources/Data/Fluid/Geothermal/ZonedBorefields/kappaFlat.txt")
     "Absolute path to flattened external kappa matrix file";
   parameter String kappaMatrixName = "kappaFlat"
     "Matrix name in kappa file";
@@ -39,8 +43,8 @@ protected
   constant Real relTol = 0.02 "Relative tolerance on distance between boreholes";
 
 
-/*
   parameter String sha =
+    if useExternalKappa then "" else
     Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.shaKappa(
       nBor=borFieDat.conDat.nBor,
       cooBor=borFieDat.conDat.cooBor,
@@ -57,7 +61,6 @@ protected
       nTim=i,
       relTol=relTol)
     "String with encrypted thermal response factor arguments";
-*/
 
 
   final parameter Integer nSegTot = nZon * nSeg
@@ -87,8 +90,8 @@ protected
   final parameter Modelica.Units.SI.Time t_start(fixed=false)
     "Simulation start time";
 
-/*
   final parameter Real[nSegTot,nSegTot,i] kappa =
+    if useExternalKappa then zeros(nSegTot, nSegTot, i) else
     Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.temperatureResponseMatrix(
       nBor=borFieDat.conDat.nBor,
       cooBor=borFieDat.conDat.cooBor,
@@ -106,14 +109,13 @@ protected
       relTol=relTol,
       sha=sha)
     "Weight factor for each aggregation cell";
-*/
 
- Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.KappaExternalObject kappaObj =
+  Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.KappaExternalObject kappaObj =
     Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.KappaExternalObject(
       kappaFileName,
       kappaMatrixName,
       nSegTot,
-      i)
+      i) if useExternalKappa
     "External object storing the precomputed kappa matrix";
 
   discrete Boolean sampleLoad
@@ -197,10 +199,12 @@ equation
 
 algorithm
   when initial() then
-    dTStepdt :=
+    dTStepdt := if useExternalKappa then
       Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.kappaGetDiag1(
         obj=kappaObj,
-        nSeg=nSegTot) / tLoaAgg;
+        nSeg=nSegTot) / tLoaAgg
+      else
+      {kappa[k, k, 1] for k in 1:nSegTot} / tLoaAgg;
   end when;
 
   when sampleLoad then
@@ -223,13 +227,21 @@ algorithm
         nu=nu,
         curTim=(time - t_start));
 
-    // External kappa response: temporal and spatial superposition from cached C object.
-    delTBor0 :=
+    // Temporal and spatial superposition, either from the cached external kappa
+    // object or from the in-Modelica kappa array.
+    delTBor0 := if useExternalKappa then
       Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.temporalSuperpositionExternal(
         obj=kappaObj,
         nTim=i,
         nSeg=nSegTot,
         QAgg_flow=QAggShi_flow,
+        curCel=curCel)
+      else
+      Buildings.Fluid.Geothermal.ZonedBorefields.BaseClasses.HeatTransfer.temporalSuperposition(
+        i=i,
+        nSeg=nSegTot,
+        QAgg_flow=QAggShi_flow,
+        kappa=kappa,
         curCel=curCel);
 
     derDelTBor0 := (delTBor0 - delTBor_1d) / tLoaAgg;

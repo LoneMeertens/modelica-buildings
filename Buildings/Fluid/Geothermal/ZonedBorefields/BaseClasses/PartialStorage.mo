@@ -40,6 +40,17 @@ extends
     "Number of cells per aggregation level";
   parameter Integer nSeg(min=1) = 10
     "Number of segments to use in vertical discretization of the boreholes";
+  parameter Boolean useExternalKappa = true
+    "If true, load precomputed kappa matrix from kappaFileName via external C object; if false, compute kappa symbolically in Modelica at translation time"
+    annotation(Evaluate=true);
+  parameter String kappaFileName =
+    Modelica.Utilities.Files.loadResource(
+      "modelica://Buildings/Resources/Data/Fluid/Geothermal/ZonedBorefields/kappaFlat.txt")
+    "Absolute path to flattened external kappa matrix file (used only if useExternalKappa=true)"
+    annotation(Dialog(enable=useExternalKappa));
+  parameter String kappaMatrixName = "kappaFlat"
+    "Matrix name in kappa file (used only if useExternalKappa=true)"
+    annotation(Dialog(enable=useExternalKappa));
 
   // Dynamics
   parameter Modelica.Fluid.Types.Dynamics energyDynamics=Modelica.Fluid.Types.Dynamics.DynamicFreeInitial
@@ -182,6 +193,9 @@ extends
     final tLoaAgg=tLoaAgg,
     final nCel=nCel,
     final nSeg=nSeg,
+    final useExternalKappa=useExternalKappa,
+    final kappaFileName=kappaFileName,
+    final kappaMatrixName=kappaMatrixName,
     final borFieDat=borFieDat) "Ground thermal response"
     annotation (Placement(transformation(extent={{-40,70},{-20,90}})));
 
