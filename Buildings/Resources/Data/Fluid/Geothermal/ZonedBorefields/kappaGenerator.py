@@ -23,10 +23,17 @@ Output:
   with matrix name "kappaFlat"
 
 Notes:
-- Uses finite_line_source_equivalent_boreholes_vectorized(...) from pygfunction,
-  which performs the distance-weighted (dis/wDis) equivalent-borehole summation
-  inside the numerical integral, instead of solving one integral per unique
-  distance and summing afterwards.
+- Uses finite_line_source_vectorized(..., approximation=True) from pygfunction,
+  evaluated once per unique zone-pair distance (vectorized, not looped) and
+  weighted-summed afterwards. approximation=True is essential for speed: the
+  non-approximated path relies on scipy.integrate.quad_vec, which is ~10,000x
+  slower for the mirror/image-source term at early aggregation times for this
+  problem's geometry (profiled directly - not merely a "sum inside vs after
+  the integral" difference, since pygfunction has no approximation-capable
+  equivalent-borehole function to sum inside the integral with in the first
+  place). This matches the original feedback call: the old script already
+  "worked within seconds" with approximation=True; only approximation=False
+  produced multi-thousand-minute runtimes.
 - Keeps exact Modelica layout and cumulative->incremental conversion.
 - Mirror index is u+v (correct), not u+v-1.
 """
@@ -45,11 +52,12 @@ from typing import Any
 import numpy as np
 from scipy.integrate import quad_vec
 from scipy.special import exp1, j0, j1, y0, y1
-from pygfunction.heat_transfer import finite_line_source_equivalent_boreholes_vectorized
+from pygfunction.heat_transfer import finite_line_source_vectorized
 
 CASE_TIMFIN_SECONDS = 50.0 * 365.0 * 24.0 * 3600.0
 REL_TOL = 0.02
 LVL_BAS = 2.0
+FLS_APPROX_N = 10
 
 
 # Read UTF-8 text file.
@@ -283,7 +291,14 @@ def build_unique_distance_set(
     return np.asarray(unique_distances, dtype=float), np.asarray(weights, dtype=float)
 
 
-# Compute the equivalent-borehole FLS response, summing over dis/w_dis inside the integral.
+# Compute the equivalent-borehole FLS response: the fast closed-form approximation is evaluated
+# for every unique distance in one vectorized call (shape (n_dis, n_tim)), then weighted-summed
+# over distances. This is only cheap because approximation=True bypasses scipy's quad_vec
+# integration entirely - with approximation=False, quad_vec becomes pathologically slow for the
+# mirror/image-source term at early aggregation times (profiled at ~3.7s per call vs ~0.0003s
+# with the approximation, i.e. the actual cause of the reported multi-thousand-minute runtimes),
+# so do not swap this back to a non-approximated or "sum inside the integral" formulation without
+# re-profiling first.
 def equivalent_fls(
     time_s: np.ndarray,
     alpha: float,
@@ -297,20 +312,21 @@ def equivalent_fls(
     reaSource: bool,
     imgSource: bool,
 ) -> np.ndarray:
-    h = finite_line_source_equivalent_boreholes_vectorized(
+    h = finite_line_source_vectorized(
         time=time_s,
         alpha=alpha,
         dis=dis,
-        wDis=w_dis,
         H1=H1,
         D1=D1,
         H2=H2,
         D2=D2,
-        N2=N2,
         reaSource=reaSource,
         imgSource=imgSource,
+        approximation=True,
+        N=FLS_APPROX_N,
     )
-    return np.asarray(h, dtype=float).reshape(np.size(time_s))
+    weighted_sum = w_dis @ np.asarray(h, dtype=float).reshape(np.size(dis), np.size(time_s))
+    return 0.5 / (N2 * H2) * weighted_sum
 
 
 # Compute one zone-pair response block for all times.
