@@ -33,7 +33,6 @@ Notes:
 
 from __future__ import annotations
 
-import csv
 import math
 import os
 import re
@@ -110,23 +109,53 @@ def parse_i_zon(text: str) -> list[int]:
     return [int(v) for v in extract_number_list(m.group(1))]
 
 
-# Parse all required case inputs from Modelica and CSV files.
-def parse_case_data(case_root: Path, case_data_name: str) -> dict[str, Any]:
-    data_dir = case_root / "Data"
-    model_path = case_root / f"{case_data_name}_KappaTest.mo"
-    config_path = data_dir / f"{case_data_name}_Configuration.mo"
-    soil_path = data_dir / f"{case_data_name}_Soil.mo"
-    borefield_path = data_dir / f"{case_data_name}_Borefield.mo"
-    coords_csv = data_dir / f"{case_data_name}_BoreholeCoordinates.csv"
+# Find the record class a fixed-name parameter (conDat/soiDat/filDat/borFieDat) is declared with.
+def find_class_ref(text: str, param_name: str) -> str:
+    m = re.search(rf"parameter\s+(\.?[\w.]+)\s+{re.escape(param_name)}\b", text)
+    if not m:
+        raise ValueError(f"Could not find declaration of parameter '{param_name}'")
+    return m.group(1)
 
+
+# Convert a dotted Modelica class reference to its .mo file path under the library root.
+def class_ref_to_path(buildings_root: Path, class_ref: str) -> Path:
+    parts = class_ref.lstrip(".").split(".")
+    return buildings_root.joinpath(*parts).with_suffix(".mo")
+
+
+# Read a record's own file plus its sibling Template.mo (if any), so field values that are only
+# ever set in one or the other can both be found via a single text search.
+def read_record_text_with_template(buildings_root: Path, class_ref: str) -> str:
+    leaf_text = read_text(class_ref_to_path(buildings_root, class_ref))
+    template_ref = class_ref.rsplit(".", 1)[0] + ".Template"
+    template_path = class_ref_to_path(buildings_root, template_ref)
+    template_text = read_text(template_path) if template_path.exists() else ""
+    return leaf_text + "\n" + template_text
+
+
+# Locate the Buildings library root (the directory containing the "Buildings" package) from this script's own location.
+def default_buildings_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if parent.name == "Buildings" and (parent / "package.mo").exists():
+            return parent.parent
+    raise RuntimeError("Could not locate the Buildings library root from this script's location")
+
+
+# Parse all required borefield inputs directly from a top-level .mo model file: nSegBor/tLoaAgg/nCel
+# are read straight off the model, and the conDat/soiDat record classes it declares (which, by
+# ZonedBorefields convention, always carry these fixed names) point at the geometry/soil data.
+def parse_model_data(model_path: Path, buildings_root: Path) -> dict[str, Any]:
     model_text = read_text(model_path)
-    config_text = read_text(config_path)
-    soil_text = read_text(soil_path)
-    _ = read_text(borefield_path)
 
     n_seg_bor = extract_first_int(model_text, r"parameter\s+Integer\s+nSegBor\(min=1\)\s*=\s*(\d+)", "nSegBor")
     t_loa_agg = extract_first_float(model_text, r"parameter\s+\.?Modelica\.Units\.SI\.Time\s+tLoaAgg\s*=\s*([0-9.eE+-]+)", "tLoaAgg")
     n_cel = extract_first_int(model_text, r"parameter\s+Integer\s+nCel\(min=1\)\s*=\s*(\d+)", "nCel")
+
+    con_class = find_class_ref(model_text, "conDat")
+    soi_class = find_class_ref(model_text, "soiDat")
+
+    config_text = read_record_text_with_template(buildings_root, con_class)
+    soil_text = read_record_text_with_template(buildings_root, soi_class)
 
     n_zon = extract_first_int(config_text, r"nZon\s*=\s*(\d+)", "nZon")
     h_bor = extract_first_float(config_text, r"hBor\s*=\s*([0-9.eE+-]+)", "hBor")
@@ -151,16 +180,15 @@ def parse_case_data(case_root: Path, case_data_name: str) -> dict[str, Any]:
     if len(dp_nominal) != n_zon:
         raise ValueError("dp_nominal length does not match nZon")
 
+    # Each borehole's global index (1-based, in cooBor/iZon order) uniquely identifies it,
+    # which is all build_unique_distance_set needs to detect the "same borehole" case.
     zones: dict[int, list[dict[str, float | int]]] = {z: [] for z in range(1, n_zon + 1)}
-    with coords_csv.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        for row in reader:
-            zone = int(row["Zone"])
-            zones[zone].append({"borehole": int(row["Borehole"]), "x": float(row["X_m"]), "y": float(row["Y_m"])})
+    for bore_idx, (zone, (x, y)) in enumerate(zip(i_zon, coo_bor), start=1):
+        zones[int(zone)].append({"borehole": bore_idx, "x": float(x), "y": float(y)})
 
     n_bor_per_zon = np.array([len(zones[z]) for z in range(1, n_zon + 1)], dtype=int)
     if np.any(n_bor_per_zon <= 0):
-        raise ValueError("Found an empty zone in BoreholeCoordinates.csv")
+        raise ValueError("Found an empty zone in cooBor/iZon")
 
     return {
         "nZon": n_zon,
@@ -174,8 +202,6 @@ def parse_case_data(case_root: Path, case_data_name: str) -> dict[str, Any]:
         "aSoi": a_soi,
         "zones": zones,
         "nBorPerZon": n_bor_per_zon,
-        "caseName": case_data_name,
-        "caseRoot": case_root,
     }
 
 
@@ -422,29 +448,27 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
 
 # Parse CLI arguments, run matrix generation, and write output file.
 def main() -> int:
-    if len(sys.argv) not in (3, 4):
+    if len(sys.argv) not in (2, 3, 4):
         print(
-            "Usage: python -u kappaGenerator.py <case_root> <case_data_name> [workers]\n"
-            "Example: python -u kappaGenerator.py /home/jovyan/.../ZonedBorefield_ParallelFlow_LKCC LKCC 8"
+            "Usage: python -u kappaGenerator.py <model_mo_path> [output_name] [workers]\n"
+            "Example: python -u kappaGenerator.py MBL_Example_ParallelZonesWithHorizontalPipes.mo MBL_Example 8"
         )
         return 2
 
-    case_root = Path(sys.argv[1]).resolve()
-    case_data_name = sys.argv[2].strip()
+    model_path = Path(sys.argv[1]).resolve()
+    if not model_path.exists():
+        raise FileNotFoundError(f"Model file does not exist: {model_path}")
 
-    if not case_root.exists():
-        raise FileNotFoundError(f"Case root does not exist: {case_root}")
+    output_name = sys.argv[2].strip() if len(sys.argv) >= 3 else model_path.stem
+    workers = max(1, int(sys.argv[3])) if len(sys.argv) == 4 else max(1, (os.cpu_count() or 2) - 1)
 
-    if len(sys.argv) == 4:
-        workers = max(1, int(sys.argv[3]))
-    else:
-        workers = max(1, (os.cpu_count() or 2) - 1)
-
-    data = parse_case_data(case_root, case_data_name)
+    buildings_root = default_buildings_root()
+    data = parse_model_data(model_path, buildings_root)
     kappa_flat, nu, _ = build_kappa_matrix(data, workers=workers)
 
-    out_file = data["caseRoot"] / "Data" / f"Kappa_{data['caseName']}.txt"
-    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = model_path.parent / "Data"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / f"Kappa_{output_name}.txt"
 
     with out_file.open("w", encoding="utf-8") as handle:
         handle.write("#1\n")
