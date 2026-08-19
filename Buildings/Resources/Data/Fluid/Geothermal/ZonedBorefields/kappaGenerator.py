@@ -5,25 +5,28 @@
 Generate a zoned-borefield kappa matrix in the exact Modelica layout.
 
 Inputs:
-- case_root: root folder of the case package, e.g.
-  /home/jovyan/impact/local_projects/Impact_collab_sg-kul_modelicadeployment/ConferenceCollab_2026/ZonedBorefield_ParallelFlow_LKCC
-- case_data_name: short case name, e.g. LKCC
+- model_mo_path: path to a top-level .mo file that instantiates a
+  Buildings.Fluid.Geothermal.ZonedBorefields borefield component (e.g. OneUTube),
+  e.g. MBL_Example_ParallelZonesWithHorizontalPipes.mo
+- optional output_name: short name used for the output file (default: the model
+  file's stem), e.g. MBL_Example
 - optional workers: number of parallel processes (default: CPU count - 1)
 
-Expected case structure:
-- <case_root>/<case_data_name>_KappaTest.mo
-- <case_root>/Data/<case_data_name>_Configuration.mo
-- <case_root>/Data/<case_data_name>_Soil.mo
-- <case_root>/Data/<case_data_name>_Borefield.mo
-- <case_root>/Data/<case_data_name>_BoreholeCoordinates.csv
+The borefield's configuration/soil data is resolved directly from whichever
+record classes the model file references for its `borFieDat` parameter
+(standard Buildings library records or case-specific ones alike) by following
+Modelica `extends` chains back to each record kind's `Template.mo` - no
+special per-case file naming convention or coordinates CSV is required.
 
 Output:
-- <case_root>/Data/Kappa_<case_data_name>.txt
+- <model_mo_path's directory>/Data/Kappa_<output_name>.txt
   with matrix name "kappaFlat"
 
 Notes:
-- Uses finite_line_source_vectorized(..., approximation=True) from pygfunction
-  for speed, with equivalent-borehole weighted aggregation done locally.
+- Uses finite_line_source_equivalent_boreholes_vectorized(...) from pygfunction,
+  which performs the distance-weighted (dis/wDis) equivalent-borehole summation
+  inside the numerical integral, instead of solving one integral per unique
+  distance and summing afterwards.
 - Keeps exact Modelica layout and cumulative->incremental conversion.
 - Mirror index is u+v (correct), not u+v-1.
 """
@@ -43,12 +46,11 @@ from typing import Any
 import numpy as np
 from scipy.integrate import quad_vec
 from scipy.special import exp1, j0, j1, y0, y1
-from pygfunction.heat_transfer import finite_line_source_vectorized
+from pygfunction.heat_transfer import finite_line_source_equivalent_boreholes_vectorized
 
 CASE_TIMFIN_SECONDS = 50.0 * 365.0 * 24.0 * 3600.0
 REL_TOL = 0.02
 LVL_BAS = 2.0
-FLS_APPROX_N = 10
 
 
 # Read UTF-8 text file.
@@ -255,8 +257,8 @@ def build_unique_distance_set(
     return np.asarray(unique_distances, dtype=float), np.asarray(weights, dtype=float)
 
 
-# Compute fast equivalent-borehole FLS approximation with robust shape handling.
-def equivalent_fls_approx(
+# Compute the equivalent-borehole FLS response, summing over dis/w_dis inside the integral.
+def equivalent_fls(
     time_s: np.ndarray,
     alpha: float,
     dis: np.ndarray,
@@ -269,48 +271,20 @@ def equivalent_fls_approx(
     reaSource: bool,
     imgSource: bool,
 ) -> np.ndarray:
-    n_dis = int(np.size(dis))
-    n_tim = int(np.size(time_s))
-
-    h = finite_line_source_vectorized(
+    h = finite_line_source_equivalent_boreholes_vectorized(
         time=time_s,
         alpha=alpha,
         dis=dis,
+        wDis=w_dis,
         H1=H1,
         D1=D1,
         H2=H2,
         D2=D2,
+        N2=N2,
         reaSource=reaSource,
         imgSource=imgSource,
-        approximation=True,
-        N=FLS_APPROX_N,
     )
-
-    h = np.asarray(h, dtype=float).squeeze()
-
-    if h.ndim == 0:
-        h = np.full((n_dis, n_tim), float(h), dtype=float)
-    elif h.ndim == 1:
-        if h.size == n_dis and n_tim == 1:
-            h = h.reshape(n_dis, 1)
-        elif h.size == n_tim and n_dis == 1:
-            h = h.reshape(1, n_tim)
-        elif h.size == n_dis:
-            h = np.tile(h.reshape(n_dis, 1), (1, n_tim))
-        elif h.size == n_tim:
-            h = np.tile(h.reshape(1, n_tim), (n_dis, 1))
-        else:
-            raise ValueError(f"Unexpected 1D shape from finite_line_source_vectorized: {h.shape}, n_dis={n_dis}, n_tim={n_tim}")
-    elif h.ndim == 2:
-        if h.shape == (n_tim, n_dis):
-            h = h.T
-        elif h.shape != (n_dis, n_tim):
-            raise ValueError(f"Unexpected 2D shape from finite_line_source_vectorized: {h.shape}, expected {(n_dis, n_tim)} or {(n_tim, n_dis)}")
-    else:
-        raise ValueError(f"Unexpected ndim from finite_line_source_vectorized: {h.ndim}, shape={h.shape}")
-
-    weighted_sum = w_dis @ h
-    return 0.5 / (N2 * H2) * weighted_sum
+    return np.asarray(h, dtype=float).reshape(np.size(time_s))
 
 
 # Compute one zone-pair response block for all times.
@@ -337,13 +311,13 @@ def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
     h_seg_mir = np.zeros((2 * n_seg - 1, i_tim), dtype=float)
 
     for m in range(n_seg):
-        h_seg_rea[m, :] = equivalent_fls_approx(
+        h_seg_rea[m, :] = equivalent_fls(
             time_s, alpha, dis, w_dis, h_bor / n_seg, d_bor, h_bor / n_seg, d_bor + m * (h_bor / n_seg),
             n_bor_per_zon_i, True, False
         )
 
     for m in range(2 * n_seg - 1):
-        h_seg_mir[m, :] = equivalent_fls_approx(
+        h_seg_mir[m, :] = equivalent_fls(
             time_s, alpha, dis, w_dis, h_bor / n_seg, d_bor, h_bor / n_seg, d_bor + m * (h_bor / n_seg),
             n_bor_per_zon_i, False, True
         )
