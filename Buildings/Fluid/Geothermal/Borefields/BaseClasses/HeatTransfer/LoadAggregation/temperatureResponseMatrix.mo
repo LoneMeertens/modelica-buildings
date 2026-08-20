@@ -12,6 +12,8 @@ impure function temperatureResponseMatrix
   input Modelica.Units.SI.ThermalConductivity kSoi
     "Thermal conductivity of soil";
   input Integer nSeg "Number of line source segments per borehole";
+  input Real segRatio[nSeg]
+    "Fraction of the total borehole length represented by each segment";
   input Integer nClu "Number of clusters for g-function calculation";
   input Integer nTimSho "Number of time steps in short time region";
   input Integer nTimLon "Number of time steps in long time region";
@@ -54,6 +56,7 @@ algorithm
       rBor=rBor,
       aSoi=aSoi,
       nSeg=nSeg,
+      segRatio=segRatio,
       nClu=nCluUni,
       nTimSho=nTimSho,
       nTimLon=nTimLon,

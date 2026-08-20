@@ -5,7 +5,7 @@ model OneUTube "Single U-tube borehole heat exchanger"
   Buildings.Fluid.Geothermal.Borefields.BaseClasses.Boreholes.BaseClasses.InternalHEXOneUTube
     intHex[nSeg](
     redeclare each final package Medium = Medium,
-    each final hSeg=borFieDat.conDat.hBor/nSeg,
+    final hSeg=segRatio*borFieDat.conDat.hBor,
     each final from_dp1=from_dp,
     each final from_dp2=from_dp,
     each final linearizeFlowResistance1=linearizeFlowResistance,
@@ -105,8 +105,10 @@ equation
 <p>
 Model of a single U-tube borehole heat exchanger.
 The borehole heat exchanger is vertically discretized into
-<i>n<sub>seg</sub></i> elements of height
-<i>h=h<sub>Bor</sub>&frasl;n<sub>seg</sub></i>.
+<i>n<sub>seg</sub></i> elements. By default, all elements have equal height
+<i>h=h<sub>Bor</sub>&frasl;n<sub>seg</sub></i>; unequal segment lengths can be used instead by
+setting the <code>segRatio</code> parameter (fraction of <i>h<sub>Bor</sub></i> per segment,
+ordered top to bottom, must sum to 1).
 Each segment contains a model for the heat transfer in the borehole,
 with a uniform borehole wall boundary temperature given by the
 <code>port_wall</code> port.

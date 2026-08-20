@@ -18,8 +18,18 @@ borehole itself using an axial discretization and a resistance-capacitance
 network for the internal thermal resistances between the individual pipes and
 between each pipe and the borehole wall.
 </p>
+<p>
+See <a href=\"modelica://Buildings.Fluid.Geothermal.Borefields.OneUTube\">
+Buildings.Fluid.Geothermal.Borefields.OneUTube</a> for a description of the
+<code>nSeg</code>/<code>segRatio</code> vs. <code>nSegGFun</code>/<code>segRatioGFun</code>
+segmentation parameters, which apply identically here.
+</p>
 </html>", revisions="<html>
 <ul>
+<li>
+August 20, 2026, by L. Meertens:<br/>
+Added a pointer to <code>OneUTube</code>'s segmentation documentation.
+</li>
 <li>
 July 2018, by Alex Laferri&egrave;re:<br/>
 Extended partial model and changed documentation to reflect the new approach

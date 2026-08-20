@@ -10,6 +10,8 @@ function shaGFunction
   input Modelica.Units.SI.ThermalDiffusivity aSoi
     "Ground thermal diffusivity used in g-function evaluation";
   input Integer nSeg "Number of line source segments per borehole";
+  input Real segRatio[nSeg]
+    "Fraction of the total borehole length represented by each segment";
   input Integer nClu "Number of clusters for g-function calculation";
   input Integer nTimSho "Number of time steps in short time region";
   input Integer nTimLon "Number of time steps in long time region";
@@ -28,6 +30,9 @@ algorithm
   sha := Buildings.Utilities.Cryptographics.sha(sha + String(rBor, format=formatStrGen));
   sha := Buildings.Utilities.Cryptographics.sha(sha + String(aSoi, format=formatStrGen));
   sha := Buildings.Utilities.Cryptographics.sha(sha + String(nSeg, format=formatStrGen));
+  for i in 1:nSeg loop
+    sha := Buildings.Utilities.Cryptographics.sha(sha + String(segRatio[i], format=formatStrGen));
+  end for;
   sha := Buildings.Utilities.Cryptographics.sha(sha + String(nClu, format=formatStrGen));
   sha := Buildings.Utilities.Cryptographics.sha(sha + String(nTimSho, format=formatStrGen));
   sha := Buildings.Utilities.Cryptographics.sha(sha + String(nTimLon, format=formatStrGen));

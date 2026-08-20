@@ -12,7 +12,7 @@ model TwoUTube "Double U-tube borehole heat exchanger"
     each final T_ref=T_ref,
     each final kUBend=kUBend,
     each final use_TDepRConv=use_TDepRConv,
-    each final hSeg=borFieDat.conDat.hBor/nSeg,
+    final hSeg=segRatio*borFieDat.conDat.hBor,
     final dp1_nominal={
       if i == 1 and computePressureDrop and not use_detailedPressureDrop and
         borFieDat.conDat.borCon == Buildings.Fluid.Geothermal.Borefields.Types.BoreholeConfiguration.DoubleUTubeParallel then

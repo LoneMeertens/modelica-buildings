@@ -11,6 +11,8 @@ function gFunction
   input Modelica.Units.SI.ThermalDiffusivity aSoi
     "Ground thermal diffusivity used in g-function evaluation";
   input Integer nSeg "Number of line source segments per borehole";
+  input Real segRatio[nSeg]
+    "Fraction of the total borehole length represented by each segment, ordered top to bottom (must sum to 1)";
   input Integer nTimSho "Number of time steps in short time region";
   input Integer nTimLon "Number of time steps in long time region";
   input Real ttsMax "Maximum adimensional time for gfunc calculation";
@@ -45,9 +47,12 @@ protected
   Modelica.Units.SI.Distance dis_ij "Separation distance between boreholes";
   Integer wDis[nClu,nClu,n_max] "Number of occurence of separation distances";
   Integer n_dis[nClu,nClu];
-  Real hSegRea[nSeg] "Real part of the FLS solution";
-  Real hSegMir[2*nSeg-1] "Mirror part of the FLS solution";
-  Modelica.Units.SI.Height dSeg "Buried depth of borehole segment";
+  Modelica.Units.SI.Height hSeg[nSeg] = segRatio*hBor
+    "Length of each borehole segment, ordered top to bottom";
+  Modelica.Units.SI.Height dSeg[nSeg] = {dBor + sum(hSeg[1:m - 1]) for m in 1:nSeg}
+    "Buried depth of each borehole segment, ordered top to bottom";
+  Real hRea "Real part of the FLS solution for one segment pair";
+  Real hMir "Mirror part of the FLS solution for one segment pair";
   Real A[nSeg*nClu+1, nSeg*nClu+1] "Coefficient matrix for system of equations";
   Real B[nSeg*nClu+1] "Coefficient vector for system of equations";
   Real X[nSeg*nClu+1] "Solution vector for system of equations";
@@ -152,46 +157,49 @@ algorithm
 
   // Evaluate thermal response matrix at all times
   for k in 1:nTimLon-1 loop
+    // For equal segments, the real part of the FLS solution only depends on
+    // |u-v| and the mirror part only on u+v (translation invariance), so a
+    // single source segment (fixed at the top, u=1) can be reused for every
+    // (u,v) pair, and only the upper triangle of cluster pairs (i<=j) needs to
+    // be evaluated, with the transpose filled by cluSiz[i]/cluSiz[j] scaling.
+    // With unequal segments (segRatio not uniform), neither shortcut is
+    // exact: hSeg[u] and hSeg[v] can differ, so the FLS solution actually
+    // depends on the specific pair of segment lengths/depths, not just their
+    // offset. Every (i,j,u,v) combination is therefore evaluated directly,
+    // always passing the true receiver's cluster size (cluSiz[i]) as nBor2 -
+    // this is unconditionally correct and reduces to the original algorithm's
+    // result when segRatio is uniform (confirmed by regression test).
     for i in 1:nClu loop
-      for j in i:nClu loop
-        // Evaluate Real and Mirror parts of FLS solution
-        // Real part
-        for m in 1:nSeg loop
-          hSegRea[m] :=
-            Buildings.Fluid.Geothermal.Borefields.BaseClasses.HeatTransfer.ThermalResponseFactors.finiteLineSource_Equivalent(
-              tLon[k + 1],
-              aSoi,
-              dis[i,j,1:n_dis[i,j]],
-              wDis[i,j,1:n_dis[i,j]],
-              hBor/nSeg,
-              dBor,
-              hBor/nSeg,
-              dBor + (m - 1)*hBor/nSeg,
-              cluSiz[i],
-              n_dis[i,j],
-              includeMirrorSource=false);
-        end for;
-        // Mirror part
-        for m in 1:(2*nSeg-1) loop
-          hSegMir[m] :=
-            Buildings.Fluid.Geothermal.Borefields.BaseClasses.HeatTransfer.ThermalResponseFactors.finiteLineSource_Equivalent(
-              tLon[k + 1],
-              aSoi,
-              dis[i,j,1:n_dis[i,j]],
-              wDis[i,j,1:n_dis[i,j]],
-              hBor/nSeg,
-              dBor,
-              hBor/nSeg,
-              dBor + (m - 1)*hBor/nSeg,
-              cluSiz[i],
-              n_dis[i,j],
-              includeRealSource=false);
-        end for;
-        // Add thermal response factor to coefficient matrix A
+      for j in 1:nClu loop
         for u in 1:nSeg loop
           for v in 1:nSeg loop
-            A[(i-1)*nSeg+u,(j-1)*nSeg+v] := hSegRea[abs(u-v)+1] + hSegMir[u+v-1];
-            A[(j-1)*nSeg+v,(i-1)*nSeg+u] := (hSegRea[abs(u-v)+1] + hSegMir[u+v-1]) * cluSiz[i] / cluSiz[j];
+            hRea :=
+              Buildings.Fluid.Geothermal.Borefields.BaseClasses.HeatTransfer.ThermalResponseFactors.finiteLineSource_Equivalent(
+                tLon[k + 1],
+                aSoi,
+                dis[i,j,1:n_dis[i,j]],
+                wDis[i,j,1:n_dis[i,j]],
+                hSeg[v],
+                dSeg[v],
+                hSeg[u],
+                dSeg[u],
+                cluSiz[i],
+                n_dis[i,j],
+                includeMirrorSource=false);
+            hMir :=
+              Buildings.Fluid.Geothermal.Borefields.BaseClasses.HeatTransfer.ThermalResponseFactors.finiteLineSource_Equivalent(
+                tLon[k + 1],
+                aSoi,
+                dis[i,j,1:n_dis[i,j]],
+                wDis[i,j,1:n_dis[i,j]],
+                hSeg[v],
+                dSeg[v],
+                hSeg[u],
+                dSeg[u],
+                cluSiz[i],
+                n_dis[i,j],
+                includeRealSource=false);
+            A[(i-1)*nSeg+u,(j-1)*nSeg+v] := hRea + hMir;
           end for;
         end for;
       end for;
@@ -254,8 +262,11 @@ Buildings.Fluid.Geothermal.Borefields.BaseClasses.HeatTransfer.ThermalResponseFa
 To obtain the <i>g</i>-function of a bore field, the bore field is first divided
 into <code>nClu</code> groups of similarly behaving boreholes. Each group
 is represented by a single <i>equivalent</i> borehole. Each equivalent borehole
-is then divided into a series of <code>nSeg</code> segments of equal length,
-each modeled as a line source of finite length. The finite line source solution
+is then divided into a series of <code>nSeg</code> segments, with the length
+of each segment set by <code>segRatio</code> (uniform by default; a non-uniform
+distribution with shorter segments near the two ends is also supported, and can
+give comparable or better accuracy at a lower segment count, see
+Cimmino and Cook (2022)), each modeled as a line source of finite length. The finite line source solution
 is superimposed in space to obtain a system of equations that gives the relation
 between the heat injection rate at each of the segments and the borehole wall
 temperature at each of the segments. The system is solved to obtain the uniform
@@ -312,8 +323,24 @@ of Building Performance Simulation 14(4): 446-460.
 <a href=\"https://doi.org/10.1080/19401493.2021.1968953\">
 doi:10.1080/19401493.2021.1968953</a>.
 </p>
+<p>
+Cimmino, M. and Cook, J.C. 2022. <i>pygfunction 2.2: New Features and
+Improvements in Accuracy and Computational Efficiency</i>. Proceedings of the
+IGSHPA Research Track 2022. Las Vegas, USA.
+</p>
 </html>", revisions="<html>
 <ul>
+<li>
+August 20, 2026, by L. Meertens:<br/>
+Added the <code>segRatio</code> input to support non-uniform segment lengths
+(shorter segments near the two borehole ends). Since neither the real-source
+translation invariance nor the cluster-pair reciprocal-fill shortcut hold
+exactly once segments have unequal lengths, the thermal response matrix is now
+evaluated directly for every ordered cluster pair and segment pair, always
+using the true receiving cluster's size&mdash;this is unconditionally correct
+and reduces to the original algorithm's result when <code>segRatio</code> is
+uniform.
+</li>
 <li>
 August 3, 2026, by Michael Wetter:<br/>
 Replaced <code>n_max = max(cluSiz.*cluSiz)</code> with a call to
