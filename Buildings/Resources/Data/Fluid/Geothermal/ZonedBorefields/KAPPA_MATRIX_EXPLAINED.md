@@ -159,53 +159,56 @@ length) is already baked into `h_single` itself (see below), not applied separat
 ## 4. How `kappaGenerator.py` evaluates `h_single`
 
 `kappaGenerator.py` gets `h_single(dis, t)` from `pygfunction.heat_transfer.
-finite_line_source_vectorized`, which computes the ordinary (non-equivalent, single
-source-receiver pair) FLS response, already including its own single-pair prefactor `0.5/H2`
-internally. It supports two modes:
+finite_line_source_equivalent_boreholes_vectorized`, which computes the equivalent-borehole FLS
+response *exactly*, via `scipy.integrate.quad_vec` numerical integration of the §2 formula — no
+closed-form or series shortcut. The `wDis`-weighted distance summation (§3b) happens *inside*
+the integrand, so `dis`/`wDis` are passed straight through rather than summed afterward.
 
-- **Exact**: numerically integrate the §2 formula with `scipy.integrate.quad_vec`. No accuracy
-  shortcuts, but computing it for every (zone-pair, segment-offset, aggregation-time)
-  combination needed for a real borefield would take an estimated **~5000 minutes**.
-- **Approximate** (`approximation=True`): a fast closed-form series approximation (a
-  precomputed rational/polynomial fit to the same integral), accurate to within about 0.02% of
-  the exact value, with no numerical integration needed at all. This is what makes the whole
-  precompute step take **under 1 second** instead of ~5000 minutes.
+Segments can have unequal lengths (`segRatio`), so every `(u, v)` receiver/source segment pair
+within a zone pair has its own depths and lengths and must be evaluated directly — there is no
+`abs(u-v)`/`u+v`-offset shortcut available (that shortcut only holds for equal segments, since it
+relies on the response depending only on the *offset* between segments, not their absolute
+depths). Naively, this means one `quad_vec` call per `(u, v)` pair. In practice this is not just
+slow but often **does not finish**: `quad_vec`'s convergence check is a single tolerance on the
+norm of its entire output vector, and at certain times the true FLS value for a given depth
+difference is vanishingly small (as low as ~1e-44) without being exactly zero — evaluated alone,
+`quad_vec` cannot satisfy its tolerance that close to zero and keeps subdividing indefinitely.
 
-`kappaGenerator.py` calls this once per (zone-pair, segment-offset), passing the **entire**
-distance array in one vectorized call (not looped one distance at a time):
-
-```python
-def equivalent_fls(time_s, alpha, dis, w_dis, H1, D1, H2, D2, N2, reaSource, imgSource):
-    h = finite_line_source_vectorized(
-        time=time_s, alpha=alpha, dis=dis, H1=H1, D1=D1, H2=H2, D2=D2,
-        reaSource=reaSource, imgSource=imgSource, approximation=True, N=FLS_APPROX_N,
-    )
-    weighted_sum = w_dis @ h        # Σ_k wDis[k] · h_single(dis[k], t), matching §3b
-    return weighted_sum / N2        # divide by N2 to get the equivalent-borehole average
-```
-
-This is called twice per segment offset `m` (once for the real source, once for the mirror
-source — `reaSource`/`imgSource` flags), for every offset `m` from 0 up to `2*nSeg-1`, and the
-two results are added together to build the `nSeg × nSeg` response block for that zone pair
-(`_compute_pair` in `kappaGenerator.py`):
+The fix — and the reason `kappaGenerator.py` evaluates every `(u, v)` pair of a zone pair in a
+**single batched call** rather than looping — is that pygfunction's own solver
+(`solvers/equivalent.py`) does exactly this internally: batching many segment pairs together
+means the aggregate tolerance check is dominated by the far larger, well-behaved majority of the
+batch, and the near-zero outlier's imprecision becomes negligible to the aggregate norm.
+`_compute_pair` in `kappaGenerator.py` builds flattened `H1/D1/H2/D2` arrays covering all
+`n_seg × n_seg` combinations for one zone pair and makes one call:
 
 ```python
-for u in range(n_seg):
-    for v in range(n_seg):
-        block[u, v, :] = h_seg_rea[abs(u - v), :] + h_seg_mir[u + v, :]
+u_idx, v_idx = np.meshgrid(np.arange(n_seg), np.arange(n_seg), indexing="ij")
+u_idx, v_idx = u_idx.ravel(), v_idx.ravel()
+h = finite_line_source_equivalent_boreholes_vectorized(
+    time=time_s, alpha=alpha, dis=dis, wDis=w_dis,
+    H1=h_seg[v_idx], D1=d_seg[v_idx], H2=h_seg[u_idx], D2=d_seg[u_idx], N2=n_bor_per_zon_i,
+)
+block = h.reshape(n_seg, n_seg, i_tim)   # block[u, v, :] = response at receiver u due to source v
 ```
+
+`reaSource`/`imgSource` both default to `True`, so one call already returns the real+mirror sum.
+Batching an entire zone pair (`n_seg²` combinations) this way takes well under a second even for
+`n_seg` in the 5-8 range that this project uses; a single unbatched pair can hang indefinitely.
 
 ## 5. Modelica's own equivalent path
 
 Modelica's `finiteLineSource_Equivalent.mo` computes the exact same weighted-average quantity,
-but always via direct numerical integration (`Modelica.Math.Nonlinear.quadratureLobatto`), with
-the `wDis`-weighted distance summation happening *inside* the integrand (§2's `y := ... * (wDis
-· exp(-dis²·u²))` line) rather than after it — mathematically equivalent to §3b/§4, just
-integrated once per zone-pair-and-offset instead of once per distance.
+also via direct numerical integration (`Modelica.Math.Nonlinear.quadratureLobatto`), with the
+`wDis`-weighted distance summation happening *inside* the integrand (§2's `y := ... * (wDis ·
+exp(-dis²·u²))` line), same as §4 — mathematically equivalent, just evaluated with a different
+quadrature routine (which is the source of the small residual discussed in §8).
 
-`temperatureResponseMatrix.mo` calls it the same way `kappaGenerator.py` calls `equivalent_fls`
-— once per zone pair, per segment offset, for the real and mirror contributions, assembling the
-same kind of `nSeg × nSeg` block:
+This is only the case for the production path (`useExternalKappa=true`, i.e.
+`kappaGenerator.py`, described above). The symbolic in-Modelica path
+(`temperatureResponseMatrix.mo`, used when `useExternalKappa=false`) has **not** been
+generalized for unequal segments and still uses the equal-segment-only offset shortcut, calling
+`finiteLineSource_Equivalent` once per segment *offset* rather than once per `(u,v)` pair:
 
 ```modelica
 for m in 1:nSeg loop
@@ -222,6 +225,9 @@ for u in 1:nSeg loop
   end for;
 end for;
 ```
+
+Using `useExternalKappa=false` with a non-uniform `segRatio` is rejected with an error (see
+`PartialStorage.mo`) precisely because this path would otherwise silently give a wrong result.
 
 ## 6. Diagonal (self-response) correction: cylindrical vs. infinite line source
 

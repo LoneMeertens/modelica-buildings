@@ -23,11 +23,12 @@ Output:
   with matrix name "kappaFlat"
 
 Notes:
-- Uses pygfunction's own _EquivalentBorehole.unique_distance() for the unique-distance/weight
-  sets, instead of a hand-rolled reimplementation. The FLS response itself still uses
-  finite_line_source_vectorized(..., approximation=True) - the exact quadrature alternative
-  (finite_line_source_equivalent_boreholes_vectorized) was tried and found impractical, see the
-  comment on equivalent_fls() for why.
+- Uses pygfunction's own equivalent-borehole machinery directly: _EquivalentBorehole.
+  unique_distance() for the unique-distance/weight sets, and
+  finite_line_source_equivalent_boreholes_vectorized() (exact, via scipy.integrate.quad_vec - no
+  closed-form approximation) for the FLS response, batching every (u,v) segment pair of a
+  zone-pair into a single call - see the comment on _compute_pair() for why batching (not just
+  looping per pair) is required for this to be numerically practical.
 - Keeps exact Modelica layout and cumulative->incremental conversion.
 - Mirror index is u+v (correct), not u+v-1.
 """
@@ -46,12 +47,11 @@ import numpy as np
 from scipy.integrate import quad_vec
 from scipy.special import exp1, j0, j1, y0, y1
 from pygfunction.boreholes import _EquivalentBorehole
-from pygfunction.heat_transfer import finite_line_source_vectorized
+from pygfunction.heat_transfer import finite_line_source_equivalent_boreholes_vectorized
 
 CASE_TIMFIN_SECONDS = 50.0 * 365.0 * 24.0 * 3600.0
 REL_TOL = 0.02
 LVL_BAS = 2.0
-FLS_APPROX_N = 10
 
 
 # Read UTF-8 text file.
@@ -342,52 +342,6 @@ def build_unique_distance_set(
     return dis, w_dis.astype(float)
 
 
-# Compute the equivalent-borehole FLS response: the fast closed-form approximation is evaluated
-# for every unique distance in one vectorized call (shape (n_dis, n_tim)), then weighted-summed
-# over distances.
-#
-# Tried switching this to pygfunction's own exact equivalent-borehole FLS
-# (finite_line_source_equivalent_boreholes_vectorized, no approximation, via
-# scipy.integrate.quad_vec) instead of this approximation - it is NOT practical: quad_vec hangs
-# or takes seconds-to-tens-of-seconds per call whenever the source/receiver segments are at
-# different depths (D1 != D2, i.e. almost every (u,v) pair, regardless of whether the segment
-# lengths themselves are equal or not - this is not specific to unequal segRatio). The cause is a
-# specific mid-range time where the true FLS value is astronomically small (~1e-44) but nonzero;
-# quad_vec cannot satisfy its convergence tolerance on a value that close to zero and keeps
-# subdividing, and because it integrates the whole requested time vector in one batched call, that
-# single bad time value stalls the entire call. approximation=True does not have this failure
-# mode and remains cross-validated to ~0.9% agreement with Modelica's own quadratureLobatto-based
-# computation (see KAPPA_MATRIX_EXPLAINED.md) - keep it.
-def equivalent_fls(
-    time_s: np.ndarray,
-    alpha: float,
-    dis: np.ndarray,
-    w_dis: np.ndarray,
-    H1: float,
-    D1: float,
-    H2: float,
-    D2: float,
-    N2: int,
-    reaSource: bool,
-    imgSource: bool,
-) -> np.ndarray:
-    h = finite_line_source_vectorized(
-        time=time_s,
-        alpha=alpha,
-        dis=dis,
-        H1=H1,
-        D1=D1,
-        H2=H2,
-        D2=D2,
-        reaSource=reaSource,
-        imgSource=imgSource,
-        approximation=True,
-        N=FLS_APPROX_N,
-    )
-    weighted_sum = w_dis @ np.asarray(h, dtype=float).reshape(np.size(dis), np.size(time_s))
-    return weighted_sum / N2
-
-
 # Compute one zone-pair response block for all times. block[u,v,:] is the response at the
 # receiving zone's local segment u due to a unit source at the (other) zone's local segment v.
 #
@@ -396,6 +350,21 @@ def equivalent_fls(
 # n_seg^2. That shortcut is only valid when every segment has the same length - with unequal
 # segments (segRatio), each (u,v) pair has its own absolute depths/lengths and must be computed
 # directly. Do not reintroduce the offset-based shortcut without segments being provably equal.
+#
+# Uses pygfunction's own exact equivalent-borehole FLS (finite_line_source_equivalent_boreholes_
+# vectorized, via scipy.integrate.quad_vec, no closed-form approximation), batching ALL n_seg^2
+# (u,v) pairs of this zone-pair into a single call - matching how pygfunction's own solver
+# (solvers/equivalent.py, thermal_response_factors) batches all segment pairs of a borehole-pair
+# group together, rather than one call per pair. This batching is not just an optimization: a
+# first attempt that called the exact FLS once per (u,v) pair found that scipy's quad_vec hangs or
+# is extremely slow whenever source and receiver segments are at different depths, because at a
+# specific mid-range time the true FLS value is astronomically small (~1e-44) but nonzero, and
+# quad_vec cannot satisfy its convergence tolerance that close to zero in isolation. quad_vec's
+# tolerance is an aggregate norm over the whole output vector, not per-element - bundling all
+# n_seg^2 pairs (most of them well-behaved, much larger in magnitude) into one call dilutes that
+# one pathological value's influence on the convergence check, exactly as it is diluted in
+# pygfunction's own batched calls. Confirmed empirically: batching all pairs of one zone-pair
+# takes ~0.1s; a single unbatched pair can hang indefinitely.
 def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
     (
         i,
@@ -413,19 +382,22 @@ def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
     ) = args
 
     i_tim = len(time_s)
-    block = np.zeros((n_seg, n_seg, i_tim), dtype=float)
 
-    for u in range(n_seg):
-        for v in range(n_seg):
-            h_rea = equivalent_fls(
-                time_s, alpha, dis, w_dis, h_seg[v], d_seg[v], h_seg[u], d_seg[u],
-                n_bor_per_zon_i, True, False
-            )
-            h_mir = equivalent_fls(
-                time_s, alpha, dis, w_dis, h_seg[v], d_seg[v], h_seg[u], d_seg[u],
-                n_bor_per_zon_i, False, True
-            )
-            block[u, v, :] = h_rea + h_mir
+    # Flatten every (u,v) receiver/source combination into one batch, row-major so that
+    # reshape(n_seg, n_seg, i_tim) below recovers block[u,v,:] in the same layout as before.
+    u_idx, v_idx = np.meshgrid(np.arange(n_seg), np.arange(n_seg), indexing="ij")
+    u_idx = u_idx.ravel()
+    v_idx = v_idx.ravel()
+    H1 = h_seg[v_idx]
+    D1 = d_seg[v_idx]
+    H2 = h_seg[u_idx]
+    D2 = d_seg[u_idx]
+
+    h = finite_line_source_equivalent_boreholes_vectorized(
+        time=time_s, alpha=alpha, dis=dis, wDis=w_dis,
+        H1=H1, D1=D1, H2=H2, D2=D2, N2=n_bor_per_zon_i,
+    )
+    block = h.reshape(n_seg, n_seg, i_tim)
 
     return i, j, block
 
@@ -512,7 +484,8 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
 
     print("[INFO] Convert cumulative -> incremental...", flush=True)
     # denom depends on the RECEIVING segment's own length (matching the 1/(N2*H2) receiver
-    # normalization in equivalent_fls), not a single borefield-wide value - each kappa[row,:,:]
+    # normalization in finite_line_source_equivalent_boreholes_vectorized), not a single
+    # borefield-wide value - each kappa[row,:,:]
     # is normalized by the length of receiver segment (row mod n_seg), same for every zone since
     # segRatio is shared across zones.
     denom_per_row = 2.0 * np.pi * k_soi * np.tile(h_seg, n_zon)
