@@ -23,16 +23,17 @@ Output:
   with matrix name "kappaFlat"
 
 Notes:
-- Uses finite_line_source_vectorized(..., approximation=True) from pygfunction,
-  evaluated once per unique zone-pair distance (vectorized, not looped) and
-  weighted-summed afterwards. approximation=True is essential for speed.
+- Uses pygfunction's own _EquivalentBorehole.unique_distance() for the unique-distance/weight
+  sets, instead of a hand-rolled reimplementation. The FLS response itself still uses
+  finite_line_source_vectorized(..., approximation=True) - the exact quadrature alternative
+  (finite_line_source_equivalent_boreholes_vectorized) was tried and found impractical, see the
+  comment on equivalent_fls() for why.
 - Keeps exact Modelica layout and cumulative->incremental conversion.
 - Mirror index is u+v (correct), not u+v-1.
 """
 
 from __future__ import annotations
 
-import math
 import os
 import re
 import sys
@@ -44,6 +45,7 @@ from typing import Any
 import numpy as np
 from scipy.integrate import quad_vec
 from scipy.special import exp1, j0, j1, y0, y1
+from pygfunction.boreholes import _EquivalentBorehole
 from pygfunction.heat_transfer import finite_line_source_vectorized
 
 CASE_TIMFIN_SECONDS = 50.0 * 365.0 * 24.0 * 3600.0
@@ -117,18 +119,27 @@ def find_class_ref(text: str, param_name: str) -> str:
     return m.group(1)
 
 
-# Convert a dotted Modelica class reference to its .mo file path under the library root.
-def class_ref_to_path(buildings_root: Path, class_ref: str) -> Path:
+# Convert a dotted Modelica class reference to its .mo file path, trying each package root in
+# turn (a class reference only carries its own package path, e.g. "Buildings.Fluid..." or
+# "ConferenceCollab_2026.ZonedBorefield_ParallelFlow_LKCC...", not which repo/root it lives
+# under, so every model this script is pointed at needs its top-level package's root available
+# here - see default_search_roots()). Falls back to the first root if none match, so the
+# resulting FileNotFoundError still points at a sensible path.
+def class_ref_to_path(search_roots: list[Path], class_ref: str) -> Path:
     parts = class_ref.lstrip(".").split(".")
-    return buildings_root.joinpath(*parts).with_suffix(".mo")
+    for root in search_roots:
+        candidate = root.joinpath(*parts).with_suffix(".mo")
+        if candidate.exists():
+            return candidate
+    return search_roots[0].joinpath(*parts).with_suffix(".mo")
 
 
 # Read a record's own file plus its sibling Template.mo (if any), so field values that are only
 # ever set in one or the other can both be found via a single text search.
-def read_record_text_with_template(buildings_root: Path, class_ref: str) -> str:
-    leaf_text = read_text(class_ref_to_path(buildings_root, class_ref))
+def read_record_text_with_template(search_roots: list[Path], class_ref: str) -> str:
+    leaf_text = read_text(class_ref_to_path(search_roots, class_ref))
     template_ref = class_ref.rsplit(".", 1)[0] + ".Template"
-    template_path = class_ref_to_path(buildings_root, template_ref)
+    template_path = class_ref_to_path(search_roots, template_ref)
     template_text = read_text(template_path) if template_path.exists() else ""
     return leaf_text + "\n" + template_text
 
@@ -141,21 +152,79 @@ def default_buildings_root() -> Path:
     raise RuntimeError("Could not locate the Buildings library root from this script's location")
 
 
+# Package roots to search when resolving a class reference (conDat/soiDat/borFieDat records can
+# live in Buildings itself, or in a deployment repo that references Buildings models, such as
+# ConferenceCollab_2026's ZonedBorefield_ParallelFlow_LKCC examples). Add further roots here if
+# a model references a record from yet another repo.
+def default_search_roots() -> list[Path]:
+    roots = [default_buildings_root()]
+    modelicadeployment_root = Path(
+        "/home/jovyan/impact/local_projects/Impact_collab_sg-kul_modelicadeployment")
+    if modelicadeployment_root.exists():
+        roots.append(modelicadeployment_root)
+    return roots
+
+
+# If model_text declares `extends SomeClass(...)`, look for a sibling file named
+# <SimpleClassName>.mo next to model_path (the standard Modelica one-class-per-file convention)
+# and return its text, so a variant model that only overrides a few parameters (e.g.
+# `extends Base(nSegBor=5, ...)`) can still inherit fields it doesn't re-specify, like tLoaAgg.
+# Returns "" if there's no extends clause or the sibling file can't be found - non-fatal, since
+# not every model uses this pattern.
+def find_extended_sibling_text(model_path: Path) -> str:
+    model_text = read_text(model_path)
+    m = re.search(r"extends\s+\.?([\w.]+)", model_text)
+    if not m:
+        return ""
+    simple_name = m.group(1).rsplit(".", 1)[-1]
+    sibling_path = model_path.parent / f"{simple_name}.mo"
+    if sibling_path.exists() and sibling_path.resolve() != model_path.resolve():
+        return read_text(sibling_path)
+    return ""
+
+
+# Find a parameter's value, matching either a full declaration
+# ("parameter Integer nSegBor(min=1)=8") or a bare modifier override ("nSegBor=5" as used inside
+# an `extends Base(nSegBor=5)` clause) - whichever appears first in `text`.
+def extract_param_value(text: str, name: str, label: str) -> str:
+    m = re.search(rf"\b{re.escape(name)}\s*(?:\([^()]*\))?\s*=\s*([^;,)\s]+)", text)
+    if not m:
+        raise ValueError(f"Could not find {label}")
+    return m.group(1)
+
+
 # Parse all required borefield inputs directly from a top-level .mo model file: nSegBor/tLoaAgg/nCel
 # are read straight off the model, and the conDat/soiDat record classes it declares (which, by
 # ZonedBorefields convention, always carry these fixed names) point at the geometry/soil data.
-def parse_model_data(model_path: Path, buildings_root: Path) -> dict[str, Any]:
+def parse_model_data(model_path: Path, search_roots: list[Path]) -> dict[str, Any]:
     model_text = read_text(model_path)
+    # A variant model that only overrides some parameters (e.g. nSegBor) via `extends Base(...)`
+    # still needs to inherit whatever it doesn't override (e.g. tLoaAgg) from Base's own file -
+    # search the current file first (so overrides win), falling back to the sibling.
+    search_text = model_text + "\n" + find_extended_sibling_text(model_path)
 
-    n_seg_bor = extract_first_int(model_text, r"parameter\s+Integer\s+nSegBor\(min=1\)\s*=\s*(\d+)", "nSegBor")
-    t_loa_agg = extract_first_float(model_text, r"parameter\s+\.?Modelica\.Units\.SI\.Time\s+tLoaAgg\s*=\s*([0-9.eE+-]+)", "tLoaAgg")
-    n_cel = extract_first_int(model_text, r"parameter\s+Integer\s+nCel\(min=1\)\s*=\s*(\d+)", "nCel")
+    n_seg_bor = int(extract_param_value(search_text, "nSegBor", "nSegBor"))
+    t_loa_agg = float(extract_param_value(search_text, "tLoaAgg", "tLoaAgg"))
+    n_cel = int(extract_param_value(search_text, "nCel", "nCel"))
 
-    con_class = find_class_ref(model_text, "conDat")
-    soi_class = find_class_ref(model_text, "soiDat")
+    # Optional: fraction of hBor represented by each segment (top to bottom, sums to 1),
+    # matching the Modelica-side `segRatio` parameter (see PartialStorage.mo). If the model
+    # doesn't set it, default to uniform segmentation - same as the Modelica-side default.
+    try:
+        seg_ratio = np.array(parse_flat_array(search_text, "segRatio"), dtype=float)
+        if len(seg_ratio) != n_seg_bor:
+            raise ValueError(
+                f"segRatio has {len(seg_ratio)} entries but nSegBor={n_seg_bor}")
+    except ValueError as exc:
+        if "Could not find array segRatio" not in str(exc):
+            raise
+        seg_ratio = np.full(n_seg_bor, 1.0 / n_seg_bor, dtype=float)
 
-    config_text = read_record_text_with_template(buildings_root, con_class)
-    soil_text = read_record_text_with_template(buildings_root, soi_class)
+    con_class = find_class_ref(search_text, "conDat")
+    soi_class = find_class_ref(search_text, "soiDat")
+
+    config_text = read_record_text_with_template(search_roots, con_class)
+    soil_text = read_record_text_with_template(search_roots, soi_class)
 
     n_zon = extract_first_int(config_text, r"nZon\s*=\s*(\d+)", "nZon")
     h_bor = extract_first_float(config_text, r"hBor\s*=\s*([0-9.eE+-]+)", "hBor")
@@ -170,21 +239,12 @@ def parse_model_data(model_path: Path, buildings_root: Path) -> dict[str, Any]:
     coo_bor = parse_coo_bor(config_text)
     i_zon = np.array(parse_i_zon(config_text), dtype=int)
 
-    m_bor_flow_nominal = np.array(parse_flat_array(config_text, "mBor_flow_nominal"), dtype=float)
-    dp_nominal = np.array(parse_flat_array(config_text, "dp_nominal"), dtype=float)
-
     if len(i_zon) != len(coo_bor):
         raise ValueError("iZon and cooBor lengths do not match")
-    if len(m_bor_flow_nominal) != n_zon:
-        raise ValueError("mBor_flow_nominal length does not match nZon")
-    if len(dp_nominal) != n_zon:
-        raise ValueError("dp_nominal length does not match nZon")
 
-    # Each borehole's global index (1-based, in cooBor/iZon order) uniquely identifies it,
-    # which is all build_unique_distance_set needs to detect the "same borehole" case.
-    zones: dict[int, list[dict[str, float | int]]] = {z: [] for z in range(1, n_zon + 1)}
-    for bore_idx, (zone, (x, y)) in enumerate(zip(i_zon, coo_bor), start=1):
-        zones[int(zone)].append({"borehole": bore_idx, "x": float(x), "y": float(y)})
+    zones: dict[int, list[dict[str, float]]] = {z: [] for z in range(1, n_zon + 1)}
+    for zone, (x, y) in zip(i_zon, coo_bor):
+        zones[int(zone)].append({"x": float(x), "y": float(y)})
 
     n_bor_per_zon = np.array([len(zones[z]) for z in range(1, n_zon + 1)], dtype=int)
     if np.any(n_bor_per_zon <= 0):
@@ -193,6 +253,7 @@ def parse_model_data(model_path: Path, buildings_root: Path) -> dict[str, Any]:
     return {
         "nZon": n_zon,
         "nSegBor": n_seg_bor,
+        "segRatio": seg_ratio,
         "tLoaAgg": t_loa_agg,
         "nCel": n_cel,
         "hBor": h_bor,
@@ -252,41 +313,51 @@ def cylindrical_heat_source(time_s: float, alpha: float, r: float, r_b: float) -
     return float(quad_vec(integrand, 0.0, np.inf)[0])
 
 
-# Build unique distance bins and multiplicities for a zone pair.
+# Build unique distance bins and multiplicities for a zone pair, using pygfunction's own
+# equivalent-borehole distance logic (the same _EquivalentBorehole class gt.gfunction.gFunction
+# itself uses internally for method='equivalent') instead of a hand-rolled reimplementation.
+# r_bor (not some other reference radius) is the correct floor for the same-borehole distance:
+# _EquivalentBorehole.distance() floors every distance at its own r_b, so a borehole's distance
+# to itself - which naturally occurs here when zone_a is zone_b - comes out as r_bor for free,
+# with no special-casing needed.
 def build_unique_distance_set(
     zone_a: list[dict[str, float | int]],
     zone_b: list[dict[str, float | int]],
-    same_zone: bool,
+    r_bor: float,
     rel_tol: float,
-    r_lin: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    unique_distances: list[float] = []
-    weights: list[int] = []
-
-    for bore_a in zone_a:
-        for bore_b in zone_b:
-            if same_zone and bore_a["borehole"] == bore_b["borehole"]:
-                distance = r_lin
-            else:
-                distance = math.hypot(float(bore_a["x"]) - float(bore_b["x"]), float(bore_a["y"]) - float(bore_b["y"]))
-
-            found = False
-            for idx, ref in enumerate(unique_distances):
-                if abs(distance - ref) / ref < rel_tol:
-                    weights[idx] += 1
-                    found = True
-                    break
-            if not found:
-                unique_distances.append(distance)
-                weights.append(1)
-
-    return np.asarray(unique_distances, dtype=float), np.asarray(weights, dtype=float)
+    x_a = np.array([b["x"] for b in zone_a], dtype=float)
+    x_b = np.array([b["x"] for b in zone_b], dtype=float)
+    equiv_a = _EquivalentBorehole((
+        1.0, 0.0, r_bor, x_a,
+        np.array([b["y"] for b in zone_a], dtype=float),
+        0.0, np.zeros_like(x_a),
+    ))
+    equiv_b = _EquivalentBorehole((
+        1.0, 0.0, r_bor, x_b,
+        np.array([b["y"] for b in zone_b], dtype=float),
+        0.0, np.zeros_like(x_b),
+    ))
+    dis, w_dis = equiv_a.unique_distance(equiv_b, disTol=rel_tol)
+    return dis, w_dis.astype(float)
 
 
 # Compute the equivalent-borehole FLS response: the fast closed-form approximation is evaluated
 # for every unique distance in one vectorized call (shape (n_dis, n_tim)), then weighted-summed
-# over distances. This is only cheap because approximation=True bypasses scipy's quad_vec
-# integration entirely. 
+# over distances.
+#
+# Tried switching this to pygfunction's own exact equivalent-borehole FLS
+# (finite_line_source_equivalent_boreholes_vectorized, no approximation, via
+# scipy.integrate.quad_vec) instead of this approximation - it is NOT practical: quad_vec hangs
+# or takes seconds-to-tens-of-seconds per call whenever the source/receiver segments are at
+# different depths (D1 != D2, i.e. almost every (u,v) pair, regardless of whether the segment
+# lengths themselves are equal or not - this is not specific to unequal segRatio). The cause is a
+# specific mid-range time where the true FLS value is astronomically small (~1e-44) but nonzero;
+# quad_vec cannot satisfy its convergence tolerance on a value that close to zero and keeps
+# subdividing, and because it integrates the whole requested time vector in one batched call, that
+# single bad time value stalls the entire call. approximation=True does not have this failure
+# mode and remains cross-validated to ~0.9% agreement with Modelica's own quadratureLobatto-based
+# computation (see KAPPA_MATRIX_EXPLAINED.md) - keep it.
 def equivalent_fls(
     time_s: np.ndarray,
     alpha: float,
@@ -317,7 +388,14 @@ def equivalent_fls(
     return weighted_sum / N2
 
 
-# Compute one zone-pair response block for all times.
+# Compute one zone-pair response block for all times. block[u,v,:] is the response at the
+# receiving zone's local segment u due to a unit source at the (other) zone's local segment v.
+#
+# For EQUAL segments, this used to exploit translation invariance (real-source term only depends
+# on the offset |u-v|, mirror-source term only on u+v) to get away with ~3*n_seg calls instead of
+# n_seg^2. That shortcut is only valid when every segment has the same length - with unequal
+# segments (segRatio), each (u,v) pair has its own absolute depths/lengths and must be computed
+# directly. Do not reintroduce the offset-based shortcut without segments being provably equal.
 def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
     (
         i,
@@ -326,8 +404,8 @@ def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
         _n_seg_tot,
         time_s,
         alpha,
-        h_bor,
-        d_bor,
+        h_seg,
+        d_seg,
         n_bor_per_zon_i,
         _n_bor_per_zon_j,
         dis,
@@ -337,24 +415,17 @@ def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
     i_tim = len(time_s)
     block = np.zeros((n_seg, n_seg, i_tim), dtype=float)
 
-    h_seg_rea = np.zeros((n_seg, i_tim), dtype=float)
-    h_seg_mir = np.zeros((2 * n_seg - 1, i_tim), dtype=float)
-
-    for m in range(n_seg):
-        h_seg_rea[m, :] = equivalent_fls(
-            time_s, alpha, dis, w_dis, h_bor / n_seg, d_bor, h_bor / n_seg, d_bor + m * (h_bor / n_seg),
-            n_bor_per_zon_i, True, False
-        )
-
-    for m in range(2 * n_seg - 1):
-        h_seg_mir[m, :] = equivalent_fls(
-            time_s, alpha, dis, w_dis, h_bor / n_seg, d_bor, h_bor / n_seg, d_bor + m * (h_bor / n_seg),
-            n_bor_per_zon_i, False, True
-        )
-
     for u in range(n_seg):
         for v in range(n_seg):
-            block[u, v, :] = h_seg_rea[abs(u - v), :] + h_seg_mir[u + v, :]
+            h_rea = equivalent_fls(
+                time_s, alpha, dis, w_dis, h_seg[v], d_seg[v], h_seg[u], d_seg[u],
+                n_bor_per_zon_i, True, False
+            )
+            h_mir = equivalent_fls(
+                time_s, alpha, dis, w_dis, h_seg[v], d_seg[v], h_seg[u], d_seg[u],
+                n_bor_per_zon_i, False, True
+            )
+            block[u, v, :] = h_rea + h_mir
 
     return i, j, block
 
@@ -375,17 +446,31 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
     n_bor_per_zon = data["nBorPerZon"]
     t_loa_agg = data["tLoaAgg"]
     n_cel = data["nCel"]
+    seg_ratio = data["segRatio"]
+
+    # Per-segment length and top-of-segment burial depth (same for every zone, since all zones
+    # share the same segRatio - see the assertion in main()). h_seg/d_seg replace the uniform
+    # h_bor/n_seg and d_bor+m*(h_bor/n_seg) used when segments were assumed equal.
+    h_seg = seg_ratio * h_bor
+    d_seg = d_bor + np.concatenate(([0.0], np.cumsum(h_seg)[:-1]))
 
     i_tim = count_aggregation_cells(CASE_TIMFIN_SECONDS, t_loa_agg, n_cel, LVL_BAS)
     nu, _ = aggregation_cell_times(i_tim, t_loa_agg, n_cel, CASE_TIMFIN_SECONDS, LVL_BAS)
 
     print(f"[INFO] nZon={n_zon}, nSeg={n_seg}, nSegTot={n_seg_tot}, nTim={i_tim}, workers={workers}", flush=True)
 
-    zone_pairs = [(i, j) for i in range(1, n_zon + 1) for j in range(i, n_zon + 1)]
+    # Every ORDERED zone pair (i,j), including i==j and both (i,j)/(j,i), is computed directly -
+    # no reciprocal-fill shortcut. That shortcut relied on all segments having equal length
+    # (H_i==H_j term cancelling in the reciprocity formula); with unequal segments the per-segment
+    # lengths differ by index, so reusing one zone-pair's block for its reciprocal would require a
+    # per-(u,v) reciprocity correction. Computing both directions costs at most 2x the zone-pair
+    # calls, which is trivial next to the n_seg^2 (vs. the old ~3*n_seg) per-pair cost already
+    # accepted for unequal segments - not worth the correctness risk of a hand-derived shortcut.
+    zone_pairs = [(i, j) for i in range(1, n_zon + 1) for j in range(1, n_zon + 1)]
     zone_pair_distances: dict[tuple[int, int], tuple[np.ndarray, np.ndarray]] = {}
 
     for (i, j) in zone_pairs:
-        dis, w_dis = build_unique_distance_set(zones[i], zones[j], same_zone=(i == j), rel_tol=REL_TOL, r_lin=0.0005 * h_bor)
+        dis, w_dis = build_unique_distance_set(zones[i], zones[j], r_bor=r_bor, rel_tol=REL_TOL)
         zone_pair_distances[(i, j)] = (dis, w_dis)
         print(f"[DIST] pair ({i},{j}) uniqueDistances={len(dis)}", flush=True)
 
@@ -397,7 +482,7 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
     for (i, j) in zone_pairs:
         dis, w_dis = zone_pair_distances[(i, j)]
         tasks.append(
-            (i, j, n_seg, n_seg_tot, nu, a_soi, h_bor, d_bor, int(n_bor_per_zon[i - 1]), int(n_bor_per_zon[j - 1]), dis, w_dis)
+            (i, j, n_seg, n_seg_tot, nu, a_soi, h_seg, d_seg, int(n_bor_per_zon[i - 1]), int(n_bor_per_zon[j - 1]), dis, w_dis)
         )
 
     done = 0
@@ -413,12 +498,6 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
             c0 = (j - 1) * n_seg
             kappa[r0:r0 + n_seg, c0:c0 + n_seg, :] = block
 
-            if i != j:
-                scale = int(n_bor_per_zon[i - 1]) / int(n_bor_per_zon[j - 1])
-                rr0 = (j - 1) * n_seg
-                cc0 = (i - 1) * n_seg
-                kappa[rr0:rr0 + n_seg, cc0:cc0 + n_seg, :] = block * scale
-
             elapsed = time.perf_counter() - t0
             avg = elapsed / done
             eta = avg * (total - done)
@@ -432,10 +511,14 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
         kappa[idx, idx, :] += diag_add
 
     print("[INFO] Convert cumulative -> incremental...", flush=True)
-    denom = 2.0 * np.pi * h_bor / n_seg * k_soi
+    # denom depends on the RECEIVING segment's own length (matching the 1/(N2*H2) receiver
+    # normalization in equivalent_fls), not a single borefield-wide value - each kappa[row,:,:]
+    # is normalized by the length of receiver segment (row mod n_seg), same for every zone since
+    # segRatio is shared across zones.
+    denom_per_row = 2.0 * np.pi * k_soi * np.tile(h_seg, n_zon)
     for k in range(i_tim - 1, 0, -1):
-        kappa[:, :, k] = (kappa[:, :, k] - kappa[:, :, k - 1]) / denom
-    kappa[:, :, 0] /= denom
+        kappa[:, :, k] = (kappa[:, :, k] - kappa[:, :, k - 1]) / denom_per_row[:, None]
+    kappa[:, :, 0] /= denom_per_row[:, None]
 
     print("[INFO] Flattening matrix...", flush=True)
     kappa_flat = np.zeros((n_seg_tot * n_seg_tot, i_tim), dtype=float)
@@ -444,7 +527,7 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
             row = receiver * n_seg_tot + source
             kappa_flat[row, :] = kappa[receiver, source, :]
 
-    z_seg = np.array([h_bor / n_seg * (m + 0.5) for m in range(n_seg)], dtype=float)
+    z_seg = d_seg + h_seg / 2.0
 
     print(f"[DONE] total runtime={(time.perf_counter()-t0)/60:.2f} min", flush=True)
     return kappa_flat, nu, z_seg
@@ -466,8 +549,7 @@ def main() -> int:
     output_name = sys.argv[2].strip() if len(sys.argv) >= 3 else model_path.stem
     workers = max(1, int(sys.argv[3])) if len(sys.argv) == 4 else max(1, (os.cpu_count() or 2) - 1)
 
-    buildings_root = default_buildings_root()
-    data = parse_model_data(model_path, buildings_root)
+    data = parse_model_data(model_path, default_search_roots())
     kappa_flat, nu, _ = build_kappa_matrix(data, workers=workers)
 
     out_dir = model_path.parent / "Data"
