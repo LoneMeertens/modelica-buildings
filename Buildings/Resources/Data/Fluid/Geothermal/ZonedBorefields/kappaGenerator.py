@@ -25,15 +25,7 @@ Output:
 Notes:
 - Uses finite_line_source_vectorized(..., approximation=True) from pygfunction,
   evaluated once per unique zone-pair distance (vectorized, not looped) and
-  weighted-summed afterwards. approximation=True is essential for speed: the
-  non-approximated path relies on scipy.integrate.quad_vec, which is ~10,000x
-  slower for the mirror/image-source term at early aggregation times for this
-  problem's geometry (profiled directly - not merely a "sum inside vs after
-  the integral" difference, since pygfunction has no approximation-capable
-  equivalent-borehole function to sum inside the integral with in the first
-  place). This matches the original feedback call: the old script already
-  "worked within seconds" with approximation=True; only approximation=False
-  produced multi-thousand-minute runtimes.
+  weighted-summed afterwards. approximation=True is essential for speed.
 - Keeps exact Modelica layout and cumulative->incremental conversion.
 - Mirror index is u+v (correct), not u+v-1.
 """
@@ -294,11 +286,7 @@ def build_unique_distance_set(
 # Compute the equivalent-borehole FLS response: the fast closed-form approximation is evaluated
 # for every unique distance in one vectorized call (shape (n_dis, n_tim)), then weighted-summed
 # over distances. This is only cheap because approximation=True bypasses scipy's quad_vec
-# integration entirely - with approximation=False, quad_vec becomes pathologically slow for the
-# mirror/image-source term at early aggregation times (profiled at ~3.7s per call vs ~0.0003s
-# with the approximation, i.e. the actual cause of the reported multi-thousand-minute runtimes),
-# so do not swap this back to a non-approximated or "sum inside the integral" formulation without
-# re-profiling first.
+# integration entirely. 
 def equivalent_fls(
     time_s: np.ndarray,
     alpha: float,
@@ -326,7 +314,7 @@ def equivalent_fls(
         N=FLS_APPROX_N,
     )
     weighted_sum = w_dis @ np.asarray(h, dtype=float).reshape(np.size(dis), np.size(time_s))
-    return 0.5 / (N2 * H2) * weighted_sum
+    return weighted_sum / N2
 
 
 # Compute one zone-pair response block for all times.
