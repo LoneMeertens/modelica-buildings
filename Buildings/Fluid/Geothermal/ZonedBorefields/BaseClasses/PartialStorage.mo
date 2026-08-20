@@ -40,6 +40,10 @@ extends
     "Number of cells per aggregation level";
   parameter Integer nSeg(min=1) = 10
     "Number of segments to use in vertical discretization of the boreholes";
+  parameter Real segRatio[nSeg] = if nSeg == 5 then {0.05, 0.16794494717703354,
+    0.5641101056459317, 0.16794494717703354, 0.05} else fill(1/nSeg, nSeg)
+    "Fraction of the total borehole length represented by each segment, ordered top to bottom (must sum to 1); default is equal segments. Unlike Buildings.Fluid.Geothermal.Borefields, nSeg here drives both the short-term borehole model and the long-term kappa matrix, so a single segmentation must serve both. Setting nSeg=5 (without also setting segRatio) switches to an unequal distribution (pygfunction segment_ratios(5, end_length_ratio=0.05)) that gives comparable accuracy to many more equal segments (about 1% long-term, about 0.1 K short-term error - see the model documentation), at lower computational cost - useful when many boreholes/zones make useExternalKappa=true (required for a non-uniform segRatio, see its documentation) necessary anyway. For any other nSeg, defaults to equal segments unless overridden explicitly with a custom segRatio"
+    annotation (Dialog(tab="Advanced", group="Segmentation"));
   parameter Boolean useExternalKappa = true
     "If true, load precomputed kappa matrix from kappaFileName via external C object; if false, compute kappa symbolically in Modelica at translation time"
     annotation(Evaluate=true);
@@ -164,6 +168,7 @@ extends
     redeclare each final package Medium = Medium,
     final borFieDat=zonDat,
     each final nSeg=nSeg,
+    each final segRatio=segRatio,
     final m_flow_nominal=borFieDat.conDat.mBor_flow_nominal,
     final dp_nominal=dp_nominal,
     each final allowFlowReversal=allowFlowReversal,
@@ -216,8 +221,10 @@ protected
   constant Real mSenFac(min=1)=1
     "Factor for scaling the sensible thermal mass of the volume";
 
+  parameter Modelica.Units.SI.Height hSeg[nSeg] = segRatio*borFieDat.conDat.hBor
+    "Length of each segment";
   parameter Modelica.Units.SI.Height z[nSeg]=
-    {borFieDat.conDat.hBor/nSeg*(i - 0.5) for i in 1:nSeg}
+    {sum(hSeg[1:i - 1]) + hSeg[i]/2 for i in 1:nSeg}
     "Distance from the surface to the considered segment";
 
   // General parameters of the boreholes. These records are required because
@@ -286,15 +293,18 @@ protected
   Modelica.Blocks.Routing.Replicator repTSoiUnd[nSeg](each final nout=nZon)
     "Signal replicator for temperature difference of the borehole"
     annotation (Placement(transformation(extent={{-28,14},{-8,34}})));
-  Buildings.Utilities.Math.Average aveTBor[nZon](each final nin=nSeg)
-    "Average temperature of all the borehole segments in each zone"
-    annotation (Placement(transformation(extent={{50,34},{70,54}})));
   Modelica.Blocks.Math.Sum aveQBor[nZon](each nin=nSeg)
     "Average (per borehole) heat transfer rate, equal to the sum of the heat transfer rates att all segments along a borehole"
     annotation (Placement(transformation(extent={{50,70},{70,90}})));
 
 equation
 
+  assert(useExternalKappa or max(abs(segRatio - fill(1/nSeg, nSeg))) < 1e-8,
+    "useExternalKappa=false requires equal-length segments (segRatio = fill(1/nSeg, nSeg)):
+    the in-Modelica symbolic kappa computation has not been generalized for unequal segments
+    and would silently give a wrong result. Either set useExternalKappa=true (and regenerate
+    the kappa file to match segRatio using kappaGenerator.py), or use equal segments.",
+    level=AssertionLevel.error);
 
   connect(borHol.port_wall, QBorHol.port_a) annotation (Line(points={{0,-30},{0,
           -25},{-6.10623e-16,-25},{-6.10623e-16,-20}}, color={191,0,0}));
@@ -313,10 +323,10 @@ equation
           80},{0,36},{8,36}},            color={0,0,127}));
   connect(TSoiDisl.y, TemBorWal.T) annotation (Line(points={{31,30},{42,30},{42,
           16},{48,16}}, color={0,0,127}));
-  connect(TSoiDisl.y, aveTBor.u) annotation (Line(points={{31,30},{42,30},{42,44},
-          {48,44}}, color={0,0,127}));
-  connect(aveTBor.y, TBorAve)
-    annotation (Line(points={{71,44},{110,44}}, color={0,0,127}));
+  for i in 1:nZon loop
+    TBorAve[i] = segRatio*TSoiDisl[i,:].y
+      "Length-weighted average borehole wall temperature (segRatio sums to 1)";
+  end for;
   connect(port_a, masFloDiv.port_b) annotation (Line(points={{-100,0},{-86,0},{-86,
           -40},{-80,-40}}, color={0,127,255}));
   connect(masFloDiv.port_a, borHol.port_a)
