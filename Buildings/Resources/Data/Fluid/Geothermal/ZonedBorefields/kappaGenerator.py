@@ -166,21 +166,30 @@ def default_search_roots() -> list[Path]:
 
 
 # If model_text declares `extends SomeClass(...)`, look for a sibling file named
-# <SimpleClassName>.mo next to model_path (the standard Modelica one-class-per-file convention)
-# and return its text, so a variant model that only overrides a few parameters (e.g.
-# `extends Base(nSegBor=5, ...)`) can still inherit fields it doesn't re-specify, like tLoaAgg.
-# Returns "" if there's no extends clause or the sibling file can't be found - non-fatal, since
-# not every model uses this pattern.
+# <SimpleClassName>.mo next to model_path (the standard Modelica one-class-per-file convention),
+# then repeats on THAT file's own `extends` clause, and so on, so a multi-level chain of variant
+# models (e.g. A extends B extends C, each only overriding a few parameters) can still inherit a
+# field declared only on the root class - not just one hop up. Returns the concatenation of every
+# ancestor's text found this way (nearer ancestors first, so extract_param_value's "first match
+# wins" still prefers the closer override). Stops when a sibling file can't be found or would
+# revisit an already-seen file (guards against an extends cycle) - non-fatal, since not every
+# model uses this pattern.
 def find_extended_sibling_text(model_path: Path) -> str:
-    model_text = read_text(model_path)
-    m = re.search(r"extends\s+\.?([\w.]+)", model_text)
-    if not m:
-        return ""
-    simple_name = m.group(1).rsplit(".", 1)[-1]
-    sibling_path = model_path.parent / f"{simple_name}.mo"
-    if sibling_path.exists() and sibling_path.resolve() != model_path.resolve():
-        return read_text(sibling_path)
-    return ""
+    texts = []
+    seen = {model_path.resolve()}
+    current_text = read_text(model_path)
+    while True:
+        m = re.search(r"extends\s+\.?([\w.]+)", current_text)
+        if not m:
+            break
+        simple_name = m.group(1).rsplit(".", 1)[-1]
+        sibling_path = model_path.parent / f"{simple_name}.mo"
+        if not sibling_path.exists() or sibling_path.resolve() in seen:
+            break
+        seen.add(sibling_path.resolve())
+        current_text = read_text(sibling_path)
+        texts.append(current_text)
+    return "\n".join(texts)
 
 
 # Find a parameter's value, matching either a full declaration
