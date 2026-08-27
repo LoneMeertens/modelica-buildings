@@ -49,10 +49,19 @@ partial model PartialBorefield
   parameter Integer nCel(min=1)=5 "Number of cells per aggregation level";
   parameter Integer nSeg(min=1)=10
     "Number of segments to use in vertical discretization of the boreholes";
+  parameter Real segRatio[nSeg] = fill(1/nSeg, nSeg)
+    "Fraction of the total borehole length represented by each segment, ordered top to bottom (must sum to 1); default is uniform segmentation"
+    annotation (Dialog(tab="Advanced", group="Segmentation"));
   parameter Boolean forceGFunCalc = false
     "Set to true to force the thermal response to be calculated at the start instead of checking whether this has been pre-computed"
     annotation (Dialog(tab="Advanced", group="g-function"));
-  parameter Integer nSegGFun(min=1)=12 "Number of segments to use in the calculation of the g-function"
+  parameter Integer nSegGFun(min=1)=8 "Number of segments to use in the calculation of the g-function"
+    annotation (Dialog(tab="Advanced", group="g-function"));
+  parameter Real segRatioGFun[nSegGFun] = if nSegGFun == 8 then {0.02,
+    0.04969537912196628, 0.12348153530379812, 0.3068230855742356,
+    0.3068230855742356, 0.12348153530379812, 0.04969537912196628, 0.02}
+    else fill(1/nSegGFun, nSegGFun)
+    "Fraction of the total borehole length represented by each g-function segment, ordered top to bottom (must sum to 1); at the default nSegGFun=8, defaults to Cimmino's unequal distribution (pygfunction segment_ratios(8, end_length_ratio=0.02)), which is more accurate than 12 equal segments at lower computational cost. Since nSeg (short-term) and nSegGFun (long-term) are decoupled in this model, this only affects the long-term response; for any other nSegGFun, defaults to equal segments unless overridden explicitly"
     annotation (Dialog(tab="Advanced", group="g-function"));
   parameter Integer nClu(min=1)=5
     "Number of borehole clusters to use in the calculation of the g-function"
@@ -168,6 +177,7 @@ partial model PartialBorefield
     final tLoaAgg=tLoaAgg,
     final nCel=nCel,
     final nSeg=nSegGFun,
+    final segRatio=segRatioGFun,
     final nClu=nClu,
     final borFieDat=borFieDat,
     final forceGFunCalc=forceGFunCalc)
@@ -179,6 +189,7 @@ partial model PartialBorefield
     redeclare final package Medium = Medium,
     final borFieDat=borFieDat,
     final nSeg=nSeg,
+    final segRatio=segRatio,
     final m_flow_nominal=m_flow_nominal/borFieDat.conDat.nBor,
     final dp_nominal=dp_nominal,
     final n=n,
@@ -203,8 +214,10 @@ partial model PartialBorefield
     annotation (Placement(transformation(extent={{-10,-50},{10,-30}})));
 
 protected
-  parameter Modelica.Units.SI.Height z[nSeg]={borFieDat.conDat.hBor/nSeg*(i -
-      0.5) for i in 1:nSeg}
+  parameter Modelica.Units.SI.Height hSeg[nSeg] = segRatio*borFieDat.conDat.hBor
+    "Length of each segment";
+  parameter Modelica.Units.SI.Height z[nSeg]={
+    sum(hSeg[1:i - 1]) + hSeg[i]/2 for i in 1:nSeg}
     "Distance from the surface to the considered segment";
 
   Buildings.Fluid.BaseClasses.MassFlowRateMultiplier masFloDiv(
@@ -225,10 +238,6 @@ protected
   Modelica.Blocks.Math.Gain gaiQ_flow(k=borFieDat.conDat.nBor)
     "Gain to multiply the heat extracted by one borehole by the number of boreholes"
     annotation (Placement(transformation(extent={{-20,70},{0,90}})));
-  Buildings.Utilities.Math.Average AveTBor(nin=nSeg)
-    "Average temperature of all the borehole segments"
-    annotation (Placement(transformation(extent={{50,34},{70,54}})));
-
   Modelica.Blocks.Sources.Constant TSoiUnd[nSeg](
     k = TExt_start,
     each y(unit="K",
@@ -293,10 +302,8 @@ equation
                                                color={0,0,127}));
   connect(QBorHol.port_b, TemBorWal.port) annotation (Line(points={{4.44089e-16,
           0},{0,0},{0,4},{80,4},{80,16},{70,16}},   color={191,0,0}));
-  connect(TSoiDis.y, AveTBor.u) annotation (Line(points={{31,30},{36,30},{36,44},
-          {48,44}}, color={0,0,127}));
-  connect(AveTBor.y, TBorAve)
-    annotation (Line(points={{71,44},{110,44}}, color={0,0,127}));
+  TBorAve = segRatio*TSoiDis.y
+    "Length-weighted average borehole wall temperature (segRatio sums to 1)";
   annotation (
     Icon(coordinateSystem(preserveAspectRatio=false, extent={{-100,-100},{100,100}}),
         graphics={

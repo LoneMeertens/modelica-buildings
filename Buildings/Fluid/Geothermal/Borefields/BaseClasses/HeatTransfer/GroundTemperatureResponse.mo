@@ -5,6 +5,8 @@ model GroundTemperatureResponse "Model calculating discrete load aggregation"
   parameter Integer nCel(min=1)=5 "Number of cells per aggregation level";
   parameter Integer nSeg=12
     "Number of segments per borehole for g-function calculation";
+  parameter Real segRatio[nSeg] = fill(1/nSeg, nSeg)
+    "Fraction of the total borehole length represented by each g-function segment, ordered top to bottom (must sum to 1); default is uniform segmentation";
   parameter Integer nClu=5 "Number of clusters for g-function calculation";
   parameter Boolean forceGFunCalc = false
     "Set to true to force the thermal response to be calculated at the start instead of checking whether it has been pre-computed";
@@ -38,6 +40,7 @@ protected
       rBor=borFieDat.conDat.rBor,
       aSoi=borFieDat.soiDat.aSoi,
       nSeg=nSeg,
+      segRatio=segRatio,
       nClu=nClu,
       nTimSho=nTimSho,
       nTimLon=nTimLon,
@@ -117,6 +120,7 @@ initial equation
       aSoi=borFieDat.soiDat.aSoi,
       kSoi=borFieDat.soiDat.kSoi,
       nSeg=nSeg,
+      segRatio=segRatio,
       nClu=nClu,
       nTimSho=nTimSho,
       nTimLon=nTimLon,

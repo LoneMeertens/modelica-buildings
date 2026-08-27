@@ -165,6 +165,21 @@ of the borehole(s).
 Further information on this discretization can be found in the &#34;Model description&#34; section below.
 </p>
 <p>
+The <code>useExternalKappa</code> parameter controls how the kappa (borehole-to-borehole thermal
+response) matrix is computed. With <code>useExternalKappa=false</code>, it is built symbolically
+inside Modelica at translation time; for anything but a small number of zones this computation
+can run out of memory during compilation. <b>With more than a handful of zones,
+<code>useExternalKappa=true</code> (the default) is required</b> to avoid this&mdash;the kappa
+matrix is instead pre-computed in Python and loaded from a file at simulation start. Setting
+<code>nSeg=5</code> (without also setting <code>segRatio</code>) additionally switches to an
+unequal, end-weighted segmentation that gives comparable accuracy to many more equal segments at
+lower computational cost, and pairs naturally with <code>useExternalKappa=true</code> for large
+borefields. See
+<a href=\"modelica://Buildings.Fluid.Geothermal.ZonedBorefields.OneUTube\">
+Buildings.Fluid.Geothermal.ZonedBorefields.OneUTube</a> for the full explanation and accuracy
+figures.
+</p>
+<p>
 The zoned borefield models use the same internal borehole heat exchanger base
 classes as the borefield models. Therefore, the same options are available for
 temperature-dependent pipe convection resistance and detailed pressure-drop

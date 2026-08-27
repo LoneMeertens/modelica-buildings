@@ -32,6 +32,9 @@ partial model PartialBorehole
 
   parameter Integer nSeg(min=1) = 10
     "Number of segments to use in vertical discretization of the boreholes";
+  parameter Real segRatio[nSeg] = fill(1/nSeg, nSeg)
+    "Fraction of the total borehole length represented by each segment, ordered top to bottom (must sum to 1); default is uniform segmentation"
+    annotation (Dialog(tab="Advanced", group="Segmentation"));
   parameter Modelica.Units.SI.Temperature TGro_start[nSeg]
     "Start value of grout temperature" annotation (Dialog(tab="Initialization"));
 

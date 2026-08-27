@@ -24,8 +24,19 @@ The ground thermal response at each borehole segment is evaluated using
 analytical thermal response factors. Spatial and temporal superposition are used
 to evaluate the total temperature change at each of the borehole segments.
 </p>
+<p>
+See <a href=\"modelica://Buildings.Fluid.Geothermal.ZonedBorefields.OneUTube\">
+Buildings.Fluid.Geothermal.ZonedBorefields.OneUTube</a> for a description of
+the <code>useExternalKappa</code> and <code>nSeg</code>/<code>segRatio</code>
+parameters, which apply identically here.
+</p>
 </html>", revisions="<html>
 <ul>
+<li>
+August 20, 2026, by L. Meertens:<br/>
+Added a pointer to <code>OneUTube</code>'s <code>useExternalKappa</code> and
+segmentation documentation.
+</li>
 <li>
 February 2024, by Massimo Cimmino:<br/>
 First implementation.
