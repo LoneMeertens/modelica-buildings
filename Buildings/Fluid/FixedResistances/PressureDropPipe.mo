@@ -141,12 +141,14 @@ protected
     annotation (Evaluate=true);
 
   final parameter Boolean use_nominalPressureDrop_internal =
-    computePressureDrop and not use_detailedPressureDrop
+    computePressureDrop and not use_detailedPressureDrop and
+    abs(dp_nominal) > Modelica.Constants.eps
     "Set to true to use nominal pressure drop model"
     annotation (Evaluate=true);
 
   final parameter Boolean use_losslessPipe_internal =
-    not computePressureDrop
+    not computePressureDrop or
+    (not use_detailedPressureDrop and abs(dp_nominal) <= Modelica.Constants.eps)
     "Set to true to use lossless pipe model"
     annotation (Evaluate=true);
 
@@ -261,6 +263,29 @@ translation.
 </p>
 </html>", revisions="<html>
 <ul>
+<li>
+September 14, 2026:<br/>
+Fixed <code>use_nominalPressureDrop_internal</code>/<code>use_losslessPipe_internal</code> to
+check <code>abs(dp_nominal) &gt; Modelica.Constants.eps</code>, matching the documented behavior
+above (\"the model uses the nominal pressure drop model when abs(dp_nominal) &gt; 0, and
+otherwise uses a lossless pipe\") and the <code>enable=</code> conditions already used for
+<code>n</code>/<code>from_dp</code>/<code>linearized</code>/<code>deltaM</code> elsewhere in this
+same file. Previously, <code>use_nominalPressureDrop_internal</code> ignored
+<code>dp_nominal</code>'s magnitude entirely, so <code>computePressureDrop=true</code> with
+<code>use_detailedPressureDrop=false</code> and <code>dp_nominal=0</code> (a legitimate,
+documented \"lossless\" configuration) incorrectly instantiated
+<code>Buildings.Fluid.FixedResistances.PressureDrop</code> with a degenerate zero nominal
+pressure drop instead of falling back to
+<a href=\"modelica://Buildings.Fluid.FixedResistances.LosslessPipe\">LosslessPipe</a> as
+documented -- observed to produce a translation-time structural singularity
+(<code>capFil2.port.Q_flow</code> unmatched) when this component is used with
+<code>dp_nominal=0</code> in a borehole/zone network with multiple parallel branches and no
+other differentiating resistance, since the degenerate nominal-pressure-drop equation
+apparently collapses in a way that removes a legitimate degree of freedom. The three modes
+(lossless / nominal / detailed) are now mutually exclusive and exhaustive again for every
+combination of <code>computePressureDrop</code>/<code>use_detailedPressureDrop</code>/
+<code>dp_nominal</code>.
+</li>
 <li>
 August 7, 2026, by Lone Meertens:<br/>
 First implementation for selecting between lossless, nominal and detailed
