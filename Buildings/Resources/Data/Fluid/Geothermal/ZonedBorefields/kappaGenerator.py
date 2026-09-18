@@ -327,7 +327,19 @@ def infinite_line_source(time_s: np.ndarray, alpha: float, r: float) -> np.ndarr
     return exp1(r**2 / (4.0 * alpha * time_s))
 
 
-# Evaluate cylindrical heat source correction term.
+# Evaluate cylindrical heat source correction term. Integration bounds (1e-12 to 100) match
+# cylindricalHeatSource.mo's own quadratureLobatto(..., a=1e-12, b=100, tolerance=1e-6) exactly,
+# rather than the mathematically-equivalent-in-the-limit (0, inf) used previously: the integrand
+# is already negligible well before u=100 for the r/aSoi scales this project uses, so the two
+# choices agree almost everywhere, but not quite - the (0, inf) version was found to disagree with
+# Modelica's own value by a consistent ~0.9% specifically on this term, which is small enough to
+# have been dismissed as an unavoidable scipy-vs-quadratureLobatto integration-method residual
+# throughout this project's validation history, but turned out to still be big enough to visibly
+# amplify through the model's own feedback loop (delTBor -> RC network -> QBor_flow -> delTBor)
+# over the first few simulated days of KappaValidation_NoHP_3x4_ExternalKappa, even after the
+# rLin fix eliminated the much larger (~80%) discrepancy on the same term. Matching Modelica's
+# bounds exactly removes the difference at the source instead of relying on it being small enough
+# not to matter.
 def cylindrical_heat_source(time_s: float, alpha: float, r: float, r_b: float) -> float:
     fo = alpha * time_s / (r_b**2)
     p = r / r_b
@@ -340,7 +352,7 @@ def cylindrical_heat_source(time_s: float, alpha: float, r: float, r_b: float) -
             * (j0(p * u) * y1(u) - j1(u) * y0(p * u))
         )
 
-    return float(quad_vec(integrand, 0.0, np.inf)[0])
+    return float(quad_vec(integrand, 1e-12, 100.0)[0])
 
 
 # Build unique distance bins and multiplicities for a zone pair, using pygfunction's own
