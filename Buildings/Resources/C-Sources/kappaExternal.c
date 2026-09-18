@@ -121,7 +121,10 @@ void kappaTemporalSuperposition(
                 kappaIndex = row*nTim + k;
 
                 /*
-                   TEST HYPOTHESIS: row-major instead of column-major.
+                   Modelica passes arrays to external C functions in row-major
+                   order under this project's toolchain (Modelon Impact/OCT) -
+                   not the Dymola-standard column-major, which the original
+                   version of this code (incorrectly) assumed.
                    QAgg_flow[source+1, k+1] index:
                    source*nTim + k
                 */
