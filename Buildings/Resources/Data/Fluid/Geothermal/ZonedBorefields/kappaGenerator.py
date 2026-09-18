@@ -47,7 +47,7 @@ import numpy as np
 from scipy.integrate import quad_vec
 from scipy.special import exp1, j0, j1, y0, y1
 from pygfunction.boreholes import _EquivalentBorehole
-from pygfunction.heat_transfer import finite_line_source_equivalent_boreholes_vectorized
+from pygfunction.heat_transfer import _finite_line_source_equivalent_boreholes_integrand
 
 CASE_TIMFIN_SECONDS = 50.0 * 365.0 * 24.0 * 3600.0
 REL_TOL = 0.02
@@ -178,16 +178,27 @@ def find_extended_sibling_text(model_path: Path) -> str:
     texts = []
     seen = {model_path.resolve()}
     current_text = read_text(model_path)
+    current_dir = model_path.parent
     while True:
         m = re.search(r"extends\s+\.?([\w.]+)", current_text)
         if not m:
             break
         simple_name = m.group(1).rsplit(".", 1)[-1]
-        sibling_path = model_path.parent / f"{simple_name}.mo"
+        # Same-directory lookup first (the standard one-class-per-file layout).
+        # Fall back to the parent directory so a model in a subpackage (e.g.
+        # Foo/KappaValidation/Bar.mo extending Foo/Base.mo one level up) can
+        # still resolve its base class - Modelica's own `within`-to-directory
+        # mapping allows this, so the lookup should too. Purely additive: the
+        # parent-directory check only runs when the same-directory one misses,
+        # so every existing flat-directory model resolves exactly as before.
+        sibling_path = current_dir / f"{simple_name}.mo"
+        if not sibling_path.exists():
+            sibling_path = current_dir.parent / f"{simple_name}.mo"
         if not sibling_path.exists() or sibling_path.resolve() in seen:
             break
         seen.add(sibling_path.resolve())
         current_text = read_text(sibling_path)
+        current_dir = sibling_path.parent
         texts.append(current_text)
     return "\n".join(texts)
 
@@ -219,15 +230,25 @@ def parse_model_data(model_path: Path, search_roots: list[Path]) -> dict[str, An
     # Optional: fraction of hBor represented by each segment (top to bottom, sums to 1),
     # matching the Modelica-side `segRatio` parameter (see PartialStorage.mo). If the model
     # doesn't set it, default to uniform segmentation - same as the Modelica-side default.
-    try:
-        seg_ratio = np.array(parse_flat_array(search_text, "segRatio"), dtype=float)
-        if len(seg_ratio) != n_seg_bor:
-            raise ValueError(
-                f"segRatio has {len(seg_ratio)} entries but nSegBor={n_seg_bor}")
-    except ValueError as exc:
-        if "Could not find array segRatio" not in str(exc):
-            raise
+    # segRatio can appear as either a literal array (segRatio={0.05, 0.168, ...}) or a
+    # fill(value, count) call (segRatio=fill(1/10, 10), as equal-segment models write it) -
+    # check both and use whichever occurs FIRST in search_text, matching this file's
+    # "nearest override wins" convention elsewhere (a model's own modifier, searched before
+    # its sibling's, should win regardless of which of the two forms either one happens to use).
+    literal_m = re.search(r"segRatio\s*=\s*\{(.*?)\}", search_text, flags=re.S)
+    fill_m = re.search(
+        r"segRatio\s*=\s*fill\s*\(([^,]+),\s*(\d+)\s*\)", search_text)
+    if literal_m and (not fill_m or literal_m.start() < fill_m.start()):
+        seg_ratio = np.array(extract_number_list(literal_m.group(1)), dtype=float)
+    elif fill_m:
+        fill_value = eval(fill_m.group(1), {"__builtins__": {}}, {})
+        fill_count = int(fill_m.group(2))
+        seg_ratio = np.full(fill_count, float(fill_value), dtype=float)
+    else:
         seg_ratio = np.full(n_seg_bor, 1.0 / n_seg_bor, dtype=float)
+    if len(seg_ratio) != n_seg_bor:
+        raise ValueError(
+            f"segRatio has {len(seg_ratio)} entries but nSegBor={n_seg_bor}")
 
     con_class = find_class_ref(search_text, "conDat")
     soi_class = find_class_ref(search_text, "soiDat")
@@ -325,30 +346,134 @@ def cylindrical_heat_source(time_s: float, alpha: float, r: float, r_b: float) -
 # Build unique distance bins and multiplicities for a zone pair, using pygfunction's own
 # equivalent-borehole distance logic (the same _EquivalentBorehole class gt.gfunction.gFunction
 # itself uses internally for method='equivalent') instead of a hand-rolled reimplementation.
-# r_bor (not some other reference radius) is the correct floor for the same-borehole distance:
-# _EquivalentBorehole.distance() floors every distance at its own r_b, so a borehole's distance
-# to itself - which naturally occurs here when zone_a is zone_b - comes out as r_bor for free,
-# with no special-casing needed.
+#
+# The floor used for a borehole's distance to itself is `r_lin` (= 0.0005*hBor), NOT r_bor. This
+# was previously r_bor (matching what pygfunction's own gFunction(method='equivalent') uses
+# internally) - reasonable-looking, but wrong for parity with this project's actual reference:
+# temperatureResponseMatrix.mo's own distance-list construction uses `dis_ij := rLin` (not rBor)
+# for i==j (same borehole) - see `Modelica.Units.SI.Radius rLin=0.0005*hBor` in that function.
+# Confirmed by direct comparison against Modelica's own computed kappa (via pyfmi on the compiled
+# internal-kappa FMU): with r_bor as the floor, kappa[1,1,1] (same-zone diagonal, t=1hr) was
+# 2.504e-3 against Modelica's actual 4.507e-3 (1.8x off); with r_lin, recomputing by hand matches
+# Modelica to 6 significant figures (and likewise for an off-diagonal entry, 1.06624e-5 both
+# sides). The choice of self-distance only matters at short elapsed times (where the FLS
+# integral's sensitivity to the exact source-receiver distance is high) - which is exactly why
+# every entry checked matched perfectly at nu[82]=50yr but diverged specifically at nu[1]=1hr,
+# decaying smoothly over the first few (1-hour-width) aggregation cells: the 2026-09-17
+# KappaValidation_NoHP_3x4_ExternalKappa investigation.
 def build_unique_distance_set(
     zone_a: list[dict[str, float | int]],
     zone_b: list[dict[str, float | int]],
-    r_bor: float,
+    r_lin: float,
     rel_tol: float,
 ) -> tuple[np.ndarray, np.ndarray]:
     x_a = np.array([b["x"] for b in zone_a], dtype=float)
     x_b = np.array([b["x"] for b in zone_b], dtype=float)
     equiv_a = _EquivalentBorehole((
-        1.0, 0.0, r_bor, x_a,
+        1.0, 0.0, r_lin, x_a,
         np.array([b["y"] for b in zone_a], dtype=float),
         0.0, np.zeros_like(x_a),
     ))
     equiv_b = _EquivalentBorehole((
-        1.0, 0.0, r_bor, x_b,
+        1.0, 0.0, r_lin, x_b,
         np.array([b["y"] for b in zone_b], dtype=float),
         0.0, np.zeros_like(x_b),
     ))
     dis, w_dis = equiv_a.unique_distance(equiv_b, disTol=rel_tol)
     return dis, w_dis.astype(float)
+
+
+# Real-source disMin, matching finiteLineSource_Equivalent.mo lines 35-42 exactly: if the receiver
+# segment lies entirely above or entirely below the source segment (no depth overlap), the
+# relevant separation is the diagonal distance to the nearest end of the source, not the plain
+# horizontal dis_min. D1/H1 = source (burDep1/len1), D2/H2 = receiver (burDep2/len2), all arrays.
+def _dis_min_real(dis_min: float, D1: np.ndarray, H1: np.ndarray, D2: np.ndarray, H2: np.ndarray) -> np.ndarray:
+    out = np.full_like(D1, dis_min, dtype=float)
+    above = (D2 + H2) < D1  # receiver entirely above source
+    below = D2 > (D1 + H1)  # receiver entirely below source
+    out = np.where(above, np.sqrt(dis_min**2 + (D1 - D2 - H2)**2), out)
+    out = np.where(below, np.sqrt(dis_min**2 + (D1 - D2 + H1)**2), out)
+    return out
+
+
+# Mirror-source disMin, matching finiteLineSource_Equivalent.mo line 44: always the diagonal
+# distance through the above-ground mirror image (D1+D2), regardless of depth overlap.
+def _dis_min_mirror(dis_min: float, D1: np.ndarray, D2: np.ndarray) -> np.ndarray:
+    return np.sqrt(dis_min**2 + (D1 + D2)**2)
+
+
+# Isolated real-only or mirror-only FLS evaluation, with an explicit, generous epsabs (matching
+# pygfunction's own precedent for exactly this situation - see finite_line_source_inclined_
+# vectorized's epsabs=1e-4/epsrel=1e-6 quad_vec calls in heat_transfer.py) instead of the default
+# (effectively epsabs=0) scipy.integrate.quad_vec tolerance used internally by pygfunction's own
+# finite_line_source_equivalent_boreholes_vectorized. Needed because isolating either source term
+# alone (reaSource=False or imgSource=False) - required to apply Modelica's per-term causality
+# threshold, see _compute_pair - can pass through a true near-zero value at some times/depths,
+# confirmed empirically: for this project's row-grouped geometry, the combined real+mirror call
+# (pygfunction's default, used elsewhere in this file) returns promptly, but the mirror-only call
+# alone hangs indefinitely with default tolerances. Without a floor, quad_vec's relative-only
+# stopping criterion has nothing to stop at near a genuine zero and keeps subdividing chasing
+# floating-point noise. A generous absolute floor doesn't measurably affect the values that matter
+# here (near a true near-zero, this term is either dwarfed by the other source term once summed,
+# or is only being used as the linearization anchor for a value defined to ramp down toward zero
+# anyway) but stops the hang.
+def _fls_isolated_source(
+    time: np.ndarray | float, alpha: float, dis: np.ndarray, w_dis: np.ndarray,
+    H1: np.ndarray, D1: np.ndarray, H2: np.ndarray, D2: np.ndarray, n2: int,
+    rea_source: bool, img_source: bool,
+) -> np.ndarray:
+    f = _finite_line_source_equivalent_boreholes_integrand(
+        dis, w_dis, H1, D1, H2, D2, n2, rea_source, img_source)
+    if isinstance(time, (np.floating, float)):
+        a = 1.0 / np.sqrt(4.0 * alpha * time)
+        return 0.5 / (n2 * H2) * quad_vec(f, a, np.inf, epsabs=1e-4, epsrel=1e-6)[0]
+    a = 1.0 / np.sqrt(4.0 * alpha * time)
+    b = np.concatenate(([np.inf], a[:-1]))
+    return np.cumsum(np.stack(
+        [0.5 / (n2 * H2) * quad_vec(f, a_i, b_i, epsabs=1e-4, epsrel=1e-6)[0]
+         for a_i, b_i in zip(a, b)],
+        axis=-1), axis=-1)
+
+
+# Evaluate the (real- or mirror-only) FLS response at both the standard aggregation times AND
+# every pair's own scalar timTre threshold, in ONE array-mode call, by inserting the timTre values
+# as extra points into the requested time grid.
+#
+# This exists because two naive alternatives both hang scipy's quad_vec: (a) a separate scalar
+# call per distinct timTre value, even batched over the full pair set, still integrates the WHOLE
+# semi-infinite tail [1/sqrt(4*aSoi*timTre), inf) in one shot - a fundamentally harder integral
+# than the narrow disjoint sub-intervals the array-mode branch normally integrates, and hangs on
+# the same ~1e-44-but-nonzero pathology documented on _compute_pair's main call, just via a
+# different code path; (b) doing that per-pair rather than batched hangs even worse (undiluted).
+# The fix: reuse the array-mode branch's own decomposition (integrate each requested time as a
+# disjoint, generally narrow, slice relative to its neighbor, then cumsum) - proven safe for the
+# main nu grid - by simply extending that same grid with the extra timTre points before calling it
+# once, so the timTre evaluations get the exact same narrow-disjoint-interval treatment as every
+# other requested time, still batched over the full pair set. `time_grid` must already be sorted
+# ascending and include every value in `time_s` (checked by the caller via merge_time_grid).
+def _eval_at_times_and_own_thresholds(
+    time_grid: np.ndarray, time_s_index: np.ndarray, time_tre_index: np.ndarray,
+    alpha: float, dis: np.ndarray, w_dis: np.ndarray,
+    H1: np.ndarray, D1: np.ndarray, H2: np.ndarray, D2: np.ndarray, n_bor_per_zon_i: int,
+    rea_source: bool, img_source: bool,
+) -> tuple[np.ndarray, np.ndarray]:
+    h_grid = _fls_isolated_source(
+        time_grid, alpha, dis, w_dis, H1, D1, H2, D2, n_bor_per_zon_i,
+        rea_source, img_source,
+    )
+    h_raw = h_grid[:, time_s_index]
+    h_at_tre = h_grid[np.arange(h_grid.shape[0]), time_tre_index]
+    return h_raw, h_at_tre
+
+
+# Build the merged, sorted, de-duplicated time grid used by _eval_at_times_and_own_thresholds:
+# every value in time_s, plus every distinct threshold time requested, together in one ascending
+# array - and the index maps needed to look each of those back up in the grid afterward.
+def _merge_time_grid(time_s: np.ndarray, extra_times: np.ndarray) -> tuple[np.ndarray, np.ndarray, dict[float, int]]:
+    grid = np.unique(np.concatenate([time_s, extra_times]))
+    time_s_index = np.searchsorted(grid, time_s)
+    lookup = {t: idx for idx, t in enumerate(grid)}
+    return grid, time_s_index, lookup
 
 
 # Compute one zone-pair response block for all times. block[u,v,:] is the response at the
@@ -374,6 +499,22 @@ def build_unique_distance_set(
 # one pathological value's influence on the convergence check, exactly as it is diluted in
 # pygfunction's own batched calls. Confirmed empirically: batching all pairs of one zone-pair
 # takes ~0.1s; a single unbatched pair can hang indefinitely.
+#
+# Real- and mirror-source terms are evaluated SEPARATELY (not combined in one call, unlike
+# before), because each needs its own short-time causality safeguard - see
+# finiteLineSource_Equivalent.mo lines 24-89 ("Linearize the solution at times below the time
+# treshold"): for elapsed time t below timTre = disMin^2/(25*aSoi) (the time for the diffusion
+# front to physically reach the receiver), Modelica does not trust the raw integral - it's
+# numerically ill-conditioned for quadratureLobatto there (the integration lower bound 1/sqrt(4*
+# aSoi*t) blows up as t->0) - and substitutes a linear ramp from 0, using the value AT timTre
+# scaled by t/timTre, instead. Real and mirror source terms have different disMin formulas (see
+# _dis_min_real/_dis_min_mirror above) and therefore different timTre per (u,v) pair, so they must
+# be thresholded independently, exactly as Modelica's hSegRea/hSegMir separation does. Omitting
+# this (as this generator originally did) silently diverges from Modelica's own reference kappa
+# for any zone pair whose (per-segment-pair) disMin is large enough that early aggregation cells
+# fall below timTre - common for cross-zone pairs, and confirmed to cause a multi-Kelvin,
+# multi-year-growing fluid-temperature drift in production (KappaValidation_NoHP_3x4_ExternalKappa,
+# 2026-09-17).
 def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
     (
         i,
@@ -391,6 +532,7 @@ def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
     ) = args
 
     i_tim = len(time_s)
+    dis_min = float(np.min(dis))
 
     # Flatten every (u,v) receiver/source combination into one batch, row-major so that
     # reshape(n_seg, n_seg, i_tim) below recovers block[u,v,:] in the same layout as before.
@@ -402,10 +544,27 @@ def _compute_pair(args: tuple[Any, ...]) -> tuple[int, int, np.ndarray]:
     H2 = h_seg[u_idx]
     D2 = d_seg[u_idx]
 
-    h = finite_line_source_equivalent_boreholes_vectorized(
-        time=time_s, alpha=alpha, dis=dis, wDis=w_dis,
-        H1=H1, D1=D1, H2=H2, D2=D2, N2=n_bor_per_zon_i,
-    )
+    time_tre_rea = _dis_min_real(dis_min, D1, H1, D2, H2)**2 / (25.0 * alpha)
+    time_tre_mir = _dis_min_mirror(dis_min, D1, D2)**2 / (25.0 * alpha)
+
+    # One shared merged grid (time_s plus every distinct threshold needed by either term) - both
+    # calls below reuse it, so the extra disjoint sub-intervals it introduces are paid for once.
+    grid, time_s_idx, lookup = _merge_time_grid(
+        time_s, np.concatenate([time_tre_rea, time_tre_mir]))
+
+    def thresholded_term(rea_source: bool, img_source: bool, time_tre: np.ndarray) -> np.ndarray:
+        time_tre_idx = np.array([lookup[t] for t in time_tre])
+        h_raw, h_at_tre = _eval_at_times_and_own_thresholds(
+            grid, time_s_idx, time_tre_idx, alpha, dis, w_dis,
+            H1, D1, H2, D2, n_bor_per_zon_i, rea_source, img_source,
+        )
+        below = time_s[None, :] < time_tre[:, None]
+        h_linear = (time_s[None, :] / time_tre[:, None]) * h_at_tre[:, None]
+        return np.where(below, h_linear, h_raw)
+
+    h_rea = thresholded_term(True, False, time_tre_rea)
+    h_mir = thresholded_term(False, True, time_tre_mir)
+    h = h_rea + h_mir
     block = h.reshape(n_seg, n_seg, i_tim)
 
     return i, j, block
@@ -450,8 +609,9 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
     zone_pairs = [(i, j) for i in range(1, n_zon + 1) for j in range(1, n_zon + 1)]
     zone_pair_distances: dict[tuple[int, int], tuple[np.ndarray, np.ndarray]] = {}
 
+    r_lin = 0.0005 * h_bor
     for (i, j) in zone_pairs:
-        dis, w_dis = build_unique_distance_set(zones[i], zones[j], r_bor=r_bor, rel_tol=REL_TOL)
+        dis, w_dis = build_unique_distance_set(zones[i], zones[j], r_lin=r_lin, rel_tol=REL_TOL)
         zone_pair_distances[(i, j)] = (dis, w_dis)
         print(f"[DIST] pair ({i},{j}) uniqueDistances={len(dis)}", flush=True)
 
