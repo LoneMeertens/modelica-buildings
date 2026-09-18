@@ -121,11 +121,11 @@ void kappaTemporalSuperposition(
                 kappaIndex = row*nTim + k;
 
                 /*
-                   Modelica passes arrays in column-major order.
+                   TEST HYPOTHESIS: row-major instead of column-major.
                    QAgg_flow[source+1, k+1] index:
-                   source + k*nSeg
+                   source*nTim + k
                 */
-                qIndex = source + k*nSeg;
+                qIndex = source*nTim + k;
 
                 deltaTb[receiver] +=
                     data->kappaFlat[kappaIndex] * QAgg_flow[qIndex];
