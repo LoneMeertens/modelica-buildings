@@ -235,9 +235,17 @@ def parse_model_data(model_path: Path, search_roots: list[Path]) -> dict[str, An
     # check both and use whichever occurs FIRST in search_text, matching this file's
     # "nearest override wins" convention elsewhere (a model's own modifier, searched before
     # its sibling's, should win regardless of which of the two forms either one happens to use).
-    literal_m = re.search(r"segRatio\s*=\s*\{(.*?)\}", search_text, flags=re.S)
+    # Either form may also appear as a dimensioned top-level parameter DECLARATION rather than a
+    # component modifier - e.g. `parameter Real segRatio[nSegBor]={0.05, ...}` (as written by
+    # TestCase_3_NoPipe_3x2x2.mo) instead of `segRatio={0.05, ...}` inside a borFie(...) modifier
+    # (as written by TestCase_3_NoPipe_3x4.mo) - so an optional `[...]` between the name and `=`
+    # must be tolerated too. Confirmed by direct testing (2026-10-01) that without this, the
+    # declaration form silently falls through to the n_seg_bor fallback below (uniform segments)
+    # instead of raising - a model intending unequal segments gets a kappa file generated for
+    # equal ones instead, with no error of any kind.
+    literal_m = re.search(r"segRatio(?:\s*\[[^\]]*\])?\s*=\s*\{(.*?)\}", search_text, flags=re.S)
     fill_m = re.search(
-        r"segRatio\s*=\s*fill\s*\(([^,]+),\s*(\d+)\s*\)", search_text)
+        r"segRatio(?:\s*\[[^\]]*\])?\s*=\s*fill\s*\(([^,]+),\s*(\d+)\s*\)", search_text)
     if literal_m and (not fill_m or literal_m.start() < fill_m.start()):
         seg_ratio = np.array(extract_number_list(literal_m.group(1)), dtype=float)
     elif fill_m:
