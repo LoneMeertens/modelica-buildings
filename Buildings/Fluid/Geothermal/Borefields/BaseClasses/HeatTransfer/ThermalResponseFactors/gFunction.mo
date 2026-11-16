@@ -147,13 +147,22 @@ algorithm
     for u in 1:nSeg loop
       // Tb coefficient in spatial superposition equations
       A[(m-1)*nSeg+u,nClu*nSeg+1] := -1;
-      // Q coefficient in heat balance equation
-      A[nClu*nSeg+1,(m-1)*nSeg+u] := cluSiz[m];
+      // Q coefficient in heat balance equation.
+      // The unknowns X[(m-1)*nSeg+u] are heat extraction rates PER UNIT LENGTH: the FLS
+      // kernel used above (finiteLineSource_Equivalent -> ..._Integrand_Equivalent,
+      // y := 0.5/(nBor2*len2*u^2)*...) normalizes by the RECEIVER length only, so each
+      // unknown must be multiplied by its own segment length hSeg[u] to contribute a heat
+      // RATE to the total-heat balance. Weighting only by cluSiz[m] gives a 2 m segment the
+      // same weight as a 30 m one.
+      // For equal segments hSeg[u] = hBor/nSeg is constant, so this row and B below are
+      // just the old ones scaled by hBor/nSeg -- the solution is unchanged, which is why
+      // every equal-segment validation passed while unequal segmentation was wrong.
+      A[nClu*nSeg+1,(m-1)*nSeg+u] := cluSiz[m]*hSeg[u];
     end for;
   end for;
   // Initialize coefficient vector B
-  // The total heat extraction rate is constant
-  B[nClu*nSeg+1] := nBor*nSeg;
+  // The total heat extraction rate is constant: sum over all boreholes of (q * length).
+  B[nClu*nSeg+1] := nBor*hBor;
 
   // Evaluate thermal response matrix at all times
   for k in 1:nTimLon-1 loop

@@ -246,6 +246,18 @@ def parse_model_data(model_path: Path, search_roots: list[Path]) -> dict[str, An
     literal_m = re.search(r"segRatio(?:\s*\[[^\]]*\])?\s*=\s*\{(.*?)\}", search_text, flags=re.S)
     fill_m = re.search(
         r"segRatio(?:\s*\[[^\]]*\])?\s*=\s*fill\s*\(([^,]+),\s*(\d+)\s*\)", search_text)
+    # A conditional binding (`segRatio = if nSeg == 5 then {...} else fill(1/nSeg, nSeg)`,
+    # as PartialStorage.mo documents) cannot be evaluated by these regexes. Silently taking
+    # the uniform fallback would generate an equal-segment kappa file for a model that asks
+    # for unequal segments, with no error of any kind. Refuse instead.
+    conditional_m = re.search(
+        r"segRatio(?:\s*\[[^\]]*\])?\s*=\s*if\b", search_text)
+    if conditional_m and not (literal_m and literal_m.start() < conditional_m.start()):
+        raise ValueError(
+            "segRatio is bound to a conditional expression (`segRatio = if ... then ... "
+            "else ...`), which this parser cannot evaluate. Refusing to fall back to "
+            "uniform segments, which would silently produce an equal-segment kappa file. "
+            "Write segRatio explicitly as a literal array or a fill(...) call in the model.")
     if literal_m and (not fill_m or literal_m.start() < fill_m.start()):
         seg_ratio = np.array(extract_number_list(literal_m.group(1)), dtype=float)
     elif fill_m:
@@ -253,6 +265,16 @@ def parse_model_data(model_path: Path, search_roots: list[Path]) -> dict[str, An
         fill_count = int(fill_m.group(2))
         seg_ratio = np.full(fill_count, float(fill_value), dtype=float)
     else:
+        # PartialStorage.mo's own default is NOT uniform for nSeg == 5: it is the
+        # conditional {0.05, 0.168, 0.564, 0.168, 0.05}. A model that leaves segRatio
+        # unstated at nSeg == 5 therefore gets unequal segments in Modelica, and assuming
+        # uniform here would silently mismatch the model it is generating kappa for.
+        if n_seg_bor == 5:
+            raise ValueError(
+                "nSegBor=5 with no explicit segRatio: PartialStorage.mo applies a "
+                "non-uniform conditional default ({0.05, 0.168, 0.564, 0.168, 0.05}) at "
+                "nSeg == 5, so a uniform fallback here would not match the model. "
+                "Set segRatio explicitly in the model.")
         seg_ratio = np.full(n_seg_bor, 1.0 / n_seg_bor, dtype=float)
     if len(seg_ratio) != n_seg_bor:
         raise ValueError(
@@ -672,15 +694,62 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
         kappa[idx, idx, :] += diag_add
 
     print("[INFO] Convert cumulative -> incremental...", flush=True)
-    # denom depends on the RECEIVING segment's own length (matching the 1/(N2*H2) receiver
-    # normalization in finite_line_source_equivalent_boreholes_vectorized), not a single
-    # borefield-wide value - each kappa[row,:,:]
-    # is normalized by the length of receiver segment (row mod n_seg), same for every zone since
-    # segRatio is shared across zones.
-    denom_per_row = 2.0 * np.pi * k_soi * np.tile(h_seg, n_zon)
+    # Normalize by the SOURCE segment's length (the COLUMN), not the receiver's (the row).
+    #
+    # pygfunction's finite_line_source_equivalent_boreholes_vectorized already applies the
+    # 1/(N2*H2) RECEIVER normalization internally, so the values arriving here are already
+    # C[u,v]/H_receiver. Modelica consumes the matrix as
+    #     delTBor[i] = sum_j kappa[i,j] * QBor_flow[j],   QBor_flow in WATTS
+    # (see GroundTemperatureResponse.mo), so converting a source segment's total heat rate
+    # Q_j [W] to the line-source strength q_j [W/m] that the FLS kernel expects requires
+    # dividing by the SOURCE length H_j. Dividing by the receiver length again instead both
+    # double-counts the receiver and never applies the source conversion, giving C/H_i^2
+    # where the physics requires C/(H_i*H_j).
+    #
+    # The resulting matrix must be SYMMETRIC: symmetry of the heat-conduction Green's
+    # function gives kappa[i,j] = C_ij/(H_i*H_j) with C symmetric. Normalizing by the row
+    # instead yields kappa[i,j]/kappa[j,i] = (H_j/H_i)^2, i.e. errors up to 15x on the
+    # off-diagonals of a strongly non-uniform segmentation, and a growing long-term bias.
+    #
+    # For EQUAL segments H_i == H_j, so row- and column-normalization are numerically
+    # identical -- which is why every equal-segment validation passed while unequal
+    # segmentation was silently wrong. See the symmetry assertion below.
+    denom_per_col = 2.0 * np.pi * k_soi * np.tile(h_seg, n_zon)
     for k in range(i_tim - 1, 0, -1):
-        kappa[:, :, k] = (kappa[:, :, k] - kappa[:, :, k - 1]) / denom_per_row[:, None]
-    kappa[:, :, 0] /= denom_per_row[:, None]
+        kappa[:, :, k] = (kappa[:, :, k] - kappa[:, :, k - 1]) / denom_per_col[None, :]
+    kappa[:, :, 0] /= denom_per_col[None, :]
+
+    # Regression guard: the physics requires a symmetric kappa for every aggregation cell.
+    # This is trivially true for equal segments, so it only has teeth for unequal ones --
+    # exactly the case that was broken. Keep it: it is cheap and it pins the normalization.
+    # Compare the asymmetry to each time column's OWN magnitude. A plain elementwise
+    # relative test is dominated by denormal far-field entries (|kappa| ~ 1e-300 at early
+    # times and large separations), which are numerically meaningless.
+    num = np.abs(kappa - np.transpose(kappa, (1, 0, 2))).max(axis=(0, 1))
+    den = np.maximum(np.abs(kappa).max(axis=(0, 1)), 1e-300)
+    max_asym = float((num / den).max())
+    if max_asym > 1e-6:
+        uniform_n_bor = len(set(int(v) for v in n_bor_per_zon)) == 1
+        if not uniform_n_bor:
+            # The symmetry argument above assumes every zone averages over the same number
+            # of boreholes. With differing counts the receiver-side 1/N2 averaging that
+            # pygfunction applies no longer cancels between (i,j) and (j,i), and this
+            # generator never applies a corresponding SOURCE-side 1/N_j. The resulting
+            # asymmetry is exactly N_j/N_i. Whether the per-borehole QBor_flow convention
+            # makes that correct has NOT been validated against pygfunction for a
+            # mixed-borehole-count field, so refuse rather than emit an unverified matrix.
+            raise AssertionError(
+                f"kappa asymmetry {max_asym:.3e} with non-uniform nBorPerZon="
+                f"{list(int(v) for v in n_bor_per_zon)}. Zones with different borehole "
+                "counts are NOT a validated configuration for this generator: the "
+                "receiver-side 1/N2 averaging does not cancel and no source-side 1/N_j is "
+                "applied, giving an N_j/N_i asymmetry. Validate against pygfunction for a "
+                "mixed-count field before trusting a kappa file for this model.")
+        raise AssertionError(
+            f"kappa is not symmetric (max relative asymmetry {max_asym:.3e}). "
+            "With uniform nBorPerZon, kappa[i,j] must equal kappa[j,i]; a (H_j/H_i)^2 "
+            "pattern means the normalization axis is wrong (see the comment above).")
+    print(f"[CHECK] kappa symmetry OK (max relative asymmetry {max_asym:.2e})", flush=True)
 
     print("[INFO] Flattening matrix...", flush=True)
     kappa_flat = np.zeros((n_seg_tot * n_seg_tot, i_tim), dtype=float)
