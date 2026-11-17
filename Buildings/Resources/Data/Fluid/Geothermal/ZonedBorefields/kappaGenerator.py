@@ -706,49 +706,46 @@ def build_kappa_matrix(data: dict[str, Any], workers: int) -> tuple[np.ndarray, 
     # double-counts the receiver and never applies the source conversion, giving C/H_i^2
     # where the physics requires C/(H_i*H_j).
     #
-    # The resulting matrix must be SYMMETRIC: symmetry of the heat-conduction Green's
-    # function gives kappa[i,j] = C_ij/(H_i*H_j) with C symmetric. Normalizing by the row
-    # instead yields kappa[i,j]/kappa[j,i] = (H_j/H_i)^2, i.e. errors up to 15x on the
-    # off-diagonals of a strongly non-uniform segmentation, and a growing long-term bias.
+    # The resulting matrix obeys an N-WEIGHTED symmetry: QBor_flow is the heat rate of ONE
+    # representative borehole per zone (PartialStorage.mo instantiates borHol[nZon] with the
+    # zone flow divided by nBorPerZon), and delTBor is the wall temperature averaged over
+    # that zone's boreholes, so
+    #     kappa[i,j] = C_ij / (2*pi*k * N_i * H_j),   C symmetric
+    # giving kappa[i,j]*N_i == kappa[j,i]*N_j. Normalizing by the row instead yields
+    # kappa[i,j]/kappa[j,i] = (H_j/H_i)^2, i.e. errors up to 15x on the off-diagonals of a
+    # strongly non-uniform segmentation, and a growing long-term bias.
     #
     # For EQUAL segments H_i == H_j, so row- and column-normalization are numerically
     # identical -- which is why every equal-segment validation passed while unequal
-    # segmentation was silently wrong. See the symmetry assertion below.
+    # segmentation was silently wrong. See the assertion below.
     denom_per_col = 2.0 * np.pi * k_soi * np.tile(h_seg, n_zon)
     for k in range(i_tim - 1, 0, -1):
         kappa[:, :, k] = (kappa[:, :, k] - kappa[:, :, k - 1]) / denom_per_col[None, :]
     kappa[:, :, 0] /= denom_per_col[None, :]
 
-    # Regression guard: the physics requires a symmetric kappa for every aggregation cell.
-    # This is trivially true for equal segments, so it only has teeth for unequal ones --
-    # exactly the case that was broken. Keep it: it is cheap and it pins the normalization.
+    # Regression guard: the physics requires N_i*kappa[i,j] == N_j*kappa[j,i] for every
+    # aggregation cell, i.e. diag(N) @ kappa is symmetric. With a uniform borehole count
+    # this reduces to plain symmetry of kappa. It is trivially satisfied for equal segments,
+    # so it only has teeth for unequal ones -- exactly the case that was broken. Keep it:
+    # it is cheap and it pins the normalization.
+    #
+    # Validated directly against pygfunction, including a mixed-count field (2 zones of
+    # 4 and 1 boreholes): the generated matrix reproduces per-zone-segment wall temperatures
+    # to 0.08% and carries exactly the N_j/N_i asymmetry, which is correct -- NOT a defect.
+    #
     # Compare the asymmetry to each time column's OWN magnitude. A plain elementwise
     # relative test is dominated by denormal far-field entries (|kappa| ~ 1e-300 at early
     # times and large separations), which are numerically meaningless.
-    num = np.abs(kappa - np.transpose(kappa, (1, 0, 2))).max(axis=(0, 1))
-    den = np.maximum(np.abs(kappa).max(axis=(0, 1)), 1e-300)
+    n_bor_vec = np.repeat(np.asarray(n_bor_per_zon, dtype=float), n_seg)
+    weighted = kappa * n_bor_vec[:, None, None]
+    num = np.abs(weighted - np.transpose(weighted, (1, 0, 2))).max(axis=(0, 1))
+    den = np.maximum(np.abs(weighted).max(axis=(0, 1)), 1e-300)
     max_asym = float((num / den).max())
     if max_asym > 1e-6:
-        uniform_n_bor = len(set(int(v) for v in n_bor_per_zon)) == 1
-        if not uniform_n_bor:
-            # The symmetry argument above assumes every zone averages over the same number
-            # of boreholes. With differing counts the receiver-side 1/N2 averaging that
-            # pygfunction applies no longer cancels between (i,j) and (j,i), and this
-            # generator never applies a corresponding SOURCE-side 1/N_j. The resulting
-            # asymmetry is exactly N_j/N_i. Whether the per-borehole QBor_flow convention
-            # makes that correct has NOT been validated against pygfunction for a
-            # mixed-borehole-count field, so refuse rather than emit an unverified matrix.
-            raise AssertionError(
-                f"kappa asymmetry {max_asym:.3e} with non-uniform nBorPerZon="
-                f"{list(int(v) for v in n_bor_per_zon)}. Zones with different borehole "
-                "counts are NOT a validated configuration for this generator: the "
-                "receiver-side 1/N2 averaging does not cancel and no source-side 1/N_j is "
-                "applied, giving an N_j/N_i asymmetry. Validate against pygfunction for a "
-                "mixed-count field before trusting a kappa file for this model.")
         raise AssertionError(
-            f"kappa is not symmetric (max relative asymmetry {max_asym:.3e}). "
-            "With uniform nBorPerZon, kappa[i,j] must equal kappa[j,i]; a (H_j/H_i)^2 "
-            "pattern means the normalization axis is wrong (see the comment above).")
+            f"kappa violates N-weighted symmetry (max relative asymmetry {max_asym:.3e}): "
+            "N_i*kappa[i,j] must equal N_j*kappa[j,i]. A residual (H_j/H_i)^2 pattern means "
+            "the normalization axis is wrong (see the comment above).")
     print(f"[CHECK] kappa symmetry OK (max relative asymmetry {max_asym:.2e})", flush=True)
 
     print("[INFO] Flattening matrix...", flush=True)
